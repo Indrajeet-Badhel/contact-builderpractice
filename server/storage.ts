@@ -36,6 +36,7 @@ export interface IStorage {
   getDocument(id: string, userId: string): Promise<Document | undefined>;
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocument(id: string, userId: string, data: Partial<Document>): Promise<Document>;
+  deleteDocument(id: string, userId: string): Promise<void>;
 
   // API Key operations
   getApiKeys(userId: string): Promise<ApiKey[]>;
@@ -148,6 +149,10 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(documents.id, id), eq(documents.userId, userId)))
       .returning();
     return document;
+  }
+
+  async deleteDocument(id: string, userId: string): Promise<void> {
+    await db.delete(documents).where(and(eq(documents.id, id), eq(documents.userId, userId)));
   }
 
   // API Key operations

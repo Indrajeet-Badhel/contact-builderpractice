@@ -290,14 +290,14 @@ export default function Dashboard() {
                   {contact.skills && contact.skills.length > 0 && (
                     <div className="mb-4">
                       <div className="flex flex-wrap gap-1">
-                        {contact.skills.slice(0, 4).map((skill, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">
+                        {contact.skills.slice(0, 3).map((skill, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs max-w-[120px] truncate">
                             {skill}
                           </Badge>
                         ))}
-                        {contact.skills.length > 4 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{contact.skills.length - 4}
+                        {contact.skills.length > 3 && (
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            +{contact.skills.length - 3}
                           </Badge>
                         )}
                       </div>

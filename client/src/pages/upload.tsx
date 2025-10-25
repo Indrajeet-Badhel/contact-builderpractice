@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Sparkles, ArrowRight, RefreshCw, AlertCircle } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Sparkles, ArrowRight, RefreshCw, AlertCircle, X } from "lucide-react";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
@@ -60,6 +60,27 @@ export default function UploadPage() {
         variant: "destructive",
       });
     },
+  });
+
+  // Delete document mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      return await apiRequest('DELETE', `/api/documents/${documentId}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      toast({
+        title: "Document Deleted",
+        description: "The failed document has been removed.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Delete Failed",
+        description: "Could not delete the document. Please try again.",
+        variant: "destructive",
+      });
+    }
   });
 
   // Show toast when extraction completes or fails
@@ -204,12 +225,26 @@ export default function UploadPage() {
                     animate={{ opacity: 1, y: 0 }}
                     layout
                   >
-                    <Card className="p-4">
+                    <Card className="p-4 relative">
+                      {document.status === 'failed' && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="absolute top-2 right-2 h-7 w-7 hover:bg-destructive/20"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMutation.mutate(document.id);
+                          }}
+                          data-testid={`button-delete-${document.id}`}
+                        >
+                          <X className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      )}
                       <div className="flex items-start gap-4">
                         <div className="p-2 bg-muted rounded-lg shrink-0">
                           <FileText className="w-6 h-6 text-muted-foreground" />
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 pr-8">
                           <div className="flex items-start justify-between gap-4 mb-2">
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-foreground truncate">
