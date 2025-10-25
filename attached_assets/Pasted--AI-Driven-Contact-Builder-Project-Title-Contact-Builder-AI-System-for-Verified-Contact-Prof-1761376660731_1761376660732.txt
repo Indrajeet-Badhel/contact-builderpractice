@@ -1,0 +1,235 @@
+ "AI-Driven Contact Builder" Project
+
+Title:
+Contact Builder: AI System for Verified Contact Profile Generation via OSINT + NLP + Knowledge Graph Integration
+
+Objective
+
+Develop an AI-powered Contact Builder system that, given minimal input (e.g., name, company, or user documents like resumes, PDFs, images, business cards), automatically constructs a comprehensive, verified, and CRM-ready contact profile by aggregating, analyzing, and validating data from public online sources (OSINT).
+
+The system must:
+
+Ingest and extract information from user-supplied documents using OCR and NLP.
+
+Aggregate verified, public data from APIs and websites.
+
+Create a unified knowledge graph linking entities (person, organization, skill, etc.).
+
+Produce a trustworthy, privacy-compliant, and ethical contact record suitable for recruiters, journalists, and individual users.
+
+System Goals
+
+Parse resumes, images, PDFs, and business documents for named entities (names, roles, emails, etc.).
+
+Enrich extracted information with OSINT-based external data (GitHub, Kaggle, ORCID, OpenCorporates, Google Scholar, Reddit, Twitter, etc.).
+
+Generate a unified structured profile (contact record + knowledge graph).
+
+Verify, cross-check, and score confidence of all collected data.
+
+Output the final result in human-readable (dashboard) and machine-readable (JSON/vCard/CSV) formats.
+
+Maintain legality (GDPR compliance), transparency (data sources cited), and ethics (no private or sensitive info scraping).
+
+Key Functional Modules
+1. Data Ingestion & Parsing
+
+Input Types: PDFs, DOCX, images (JPG/PNG), text files, business cards.
+
+Tools:
+
+OCR: Tesseract, EasyOCR, or Google Vision API (optional).
+
+NLP: spaCy, transformers (Hugging Face), or fine-tuned LLM for extraction.
+
+Tabular Data: Camelot or pdfplumber for table extraction.
+
+Tasks:
+
+Detect and extract: names, emails, phone numbers, organizations, job titles, skills, locations, dates.
+
+Identify and tag entities (Person, Organization, Skill, Date, Location).
+
+Normalize entities (standardize skill names like “C++” vs “cpp”).
+
+Perform entity resolution across multiple docs.
+
+Output Example:
+
+{
+  "name": "Jane Doe",
+  "email": "jane.doe@example.com",
+  "current_company": "XYZ Corp",
+  "title": "Software Engineer",
+  "skills": ["Python", "Machine Learning"],
+  "location": "San Francisco, CA"
+}
+
+2. External Data Aggregation (OSINT)
+
+Use extracted entities (name, company, etc.) to search across open APIs and scrape public profiles:
+
+Source Type	Example Sites	Method	Data Extracted
+Developer Profiles	GitHub, Kaggle, GitLab	API	Repos, languages, activity
+Academic	ORCID, Google Scholar, Crossref	API/Scraping	Publications, affiliations
+Professional	OpenCorporates, Wikidata	API	Company details, officers
+Social	Twitter, Reddit, Mastodon, StackOverflow	API/Scraping	Posts, bio, sentiment
+Corporate	Company “About Us” pages	BeautifulSoup scraping	Job verification
+News/Media	NewsAPI, RSS	API	Mentions, quotes
+
+Respect robots.txt and platform ToS.
+
+Store raw and cleaned data with timestamp and source URL.
+
+Apply NLP to extract sentiment, skills, and recurring entities from posts.
+
+3. Data Fusion and Knowledge Graph Construction
+
+Build a Neo4j or RDF graph with relationships like:
+
+(Person)-[:WORKS_AT]->(Organization)
+
+(Person)-[:HAS_SKILL]->(Skill)
+
+(Person)-[:AUTHORED]->(Publication)
+
+(Person)-[:MENTIONED_IN]->(NewsArticle)
+
+Merge duplicate nodes using fuzzy matching (Levenshtein distance, name similarity).
+
+Assign confidence weights to edges based on source trustworthiness (e.g., official registry > social post).
+
+Graph Example (Neo4j schema):
+
+(:Person {name:"Jane Doe"})-[:WORKS_AT]->(:Organization {name:"XYZ Corp"})
+(:Person)-[:HAS_SKILL]->(:Skill {name:"Machine Learning"})
+(:Person)-[:HAS_ACCOUNT]->(:Platform {name:"GitHub", url:"https://github.com/janedoe"})
+
+4. Verification and Confidence Scoring
+
+Cross-check consistency between sources (e.g., job title matches resume and LinkedIn).
+
+Assign confidence scores (0–1 scale):
+
+0.9 = official or verified API source
+
+0.7 = consistent across 2+ independent sources
+
+0.5 = unverified single source
+
+Flag discrepancies or outdated data (e.g., “last seen 2019”).
+
+Generate “Verified” and “Unverified” sections in the output profile.
+
+5. Personality & Sentiment Analysis (Optional)
+
+Use text (tweets, Reddit comments) to infer:
+
+Sentiment polarity (positive, neutral, negative)
+
+Big Five traits (openness, conscientiousness, extraversion, agreeableness, neuroticism)
+
+Model references:
+
+cardiffnlp/twitter-roberta-base-sentiment
+
+HuggingFace: personality-prediction-models
+
+Output insights like:
+
+“Frequently discusses open-source and machine learning”
+
+“Language tone: highly positive and analytical”
+
+6. Frontend & User Interface
+
+Framework: React.js or Next.js
+
+Features:
+
+Upload zone (docs, PDFs, images)
+
+Progress tracker (“Parsing Resume → Searching Public Data → Building Graph”)
+
+Interactive graph visualization (D3.js or Neo4j Bloom)
+
+Tabs for: Overview | Skills | Timeline | Sources | Verification
+
+Export: JSON / CSV / vCard / PDF summary
+
+Optional modes:
+
+Recruiter View: Focus on experience and skill fit
+
+Journalist View: Focus on public mentions and credibility
+
+Personal View: Focus on privacy exposure and online presence
+
+7. Ethical & Legal Compliance
+
+Follow GDPR and data minimization:
+
+Use only public, lawful, and non-sensitive data.
+
+No biometric or facial recognition.
+
+Provide source transparency (each field includes data origin link).
+
+Include user consent flow if used for recruitment.
+
+Encrypt stored data; log all data access.
+
+No re-publishing, only internal display and export.
+
+8. Tech Stack Summary
+Component	Recommended Tools/Libraries
+OCR	Tesseract, EasyOCR
+NLP/NER	spaCy, HuggingFace Transformers
+Data Scraping	requests, BeautifulSoup, Selenium (as fallback)
+Graph DB	Neo4j / ArangoDB
+Personality Analysis	HuggingFace, Transformers
+Backend	Python (FastAPI / Flask)
+Frontend	React / Next.js
+Storage	PostgreSQL (relational) + Neo4j (graph)
+Deployment	Docker + Cloudflare Worker for scraping endpoints
+Auth & Security	OAuth2 (for user login) + HTTPS encryption
+9. Output Examples
+
+A. Structured JSON Profile
+
+{
+  "person": {
+    "name": "Jane Doe",
+    "title": "Software Engineer",
+    "company": "XYZ Corp",
+    "skills": ["Python", "ML", "Data Analysis"],
+    "verified_sources": [
+      {"source": "GitHub", "url": "https://github.com/janedoe"},
+      {"source": "Google Scholar", "url": "https://scholar.google.com/jane-doe"}
+    ],
+    "confidence_score": 0.87
+  }
+}
+
+
+B. Auto-generated Summary
+
+Jane Doe is a Software Engineer at XYZ Corp, specializing in Machine Learning and Data Analysis. She actively contributes to open-source repositories on GitHub and has published 3 research papers in the last two years. Public sentiment analysis suggests a positive, analytical communication style. Verified via GitHub, ORCID, and company website.
+
+Bonus Features (Future Enhancements)
+
+Automated “Update Monitor” – alerts when new data (job, tweet, publication) appears.
+
+Integration with CRM systems (Salesforce, HubSpot).
+
+“Profile Improvement Advisor” – suggests ways to improve public visibility.
+
+“Ethical Mode” – show exactly what public data about you is visible online.
+
+Success Criteria
+
+✅ Accurate extraction and entity linking (>90% precision on test docs)
+✅ Successful enrichment with verified public data (≥5 diverse sources)
+✅ Graph visualization with at least 4 entity types (Person, Skill, Org, Account)
+✅ Confidence scoring implemented and explainable
+✅ GDPR-compliant data usage, transparent sources, and ethical flagging
