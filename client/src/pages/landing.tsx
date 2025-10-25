@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Sparkles, Database, Search, Upload, Users, CheckCircle, Zap } from "lucide-react";
-import { SiGithub, SiGitlab, SiStackoverflow, SiWikipedia, SiDevdotto, SiHuggingface, SiGooglegemini, SiHubspot, SiKaggle, SiOrca } from "react-icons/si";
+import { FileText, Sparkles, Database, Search, Upload, Users, CheckCircle, Zap, Beaker } from "lucide-react";
+import { SiGithub, SiGitlab, SiStackoverflow, SiWikipedia, SiDevdotto, SiHuggingface, SiGooglegemini, SiHubspot, SiKaggle } from "react-icons/si";
 import { motion } from "framer-motion";
 
 export default function Landing() {
@@ -139,7 +139,7 @@ export default function Landing() {
                 { icon: SiGooglegemini, name: "Gemini AI", color: "#8E75B2" },
                 { icon: SiHubspot, name: "HubSpot", color: "#FF7A59" },
                 { icon: SiKaggle, name: "Kaggle", color: "#20BEFF" },
-                { icon: SiOrca, name: "ORCID", color: "#A6CE39" },
+                { icon: Beaker, name: "ORCID", color: "#A6CE39" },
                 { icon: SiGithub, name: "GitHub", color: "#181717" },
                 { icon: SiStackoverflow, name: "Stack Overflow", color: "#F48024" },
                 { icon: SiWikipedia, name: "Wikipedia", color: "#000000" },
