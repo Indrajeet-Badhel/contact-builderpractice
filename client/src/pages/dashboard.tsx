@@ -527,14 +527,14 @@ export default function Dashboard() {
                 )}
 
                 {/* GitHub Repositories Section */}
-                {selectedContact.enrichedData?.repositories && selectedContact.enrichedData.repositories.length > 0 && (
+                {selectedContact.enrichedData && (selectedContact.enrichedData as any).repositories && (selectedContact.enrichedData as any).repositories.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                       <Code className="w-4 h-4" />
                       GITHUB REPOSITORIES
                     </h3>
                     <div className="space-y-2">
-                      {selectedContact.enrichedData.repositories.slice(0, 5).map((repo: any, i: number) => (
+                      {(selectedContact.enrichedData as any).repositories.slice(0, 5).map((repo: any, i: number) => (
                         <div key={i} className="bg-muted/30 p-3 rounded-lg">
                           <div className="flex items-start justify-between mb-2">
                             <h4 className="text-sm font-medium">{repo.name}</h4>
@@ -569,7 +569,7 @@ export default function Dashboard() {
                 )}
 
                 {/* ORCID Information */}
-                {selectedContact.enrichedData?.orcidId && (
+                {selectedContact.enrichedData && (selectedContact.enrichedData as any).orcidId && (
                   <div>
                     <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                       <BookOpen className="w-4 h-4" />
@@ -578,13 +578,13 @@ export default function Dashboard() {
                     <div className="bg-muted/30 p-4 rounded-lg space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">ORCID iD</span>
-                        <code className="text-xs bg-background px-2 py-1 rounded">{selectedContact.enrichedData.orcidId}</code>
+                        <code className="text-xs bg-background px-2 py-1 rounded">{(selectedContact.enrichedData as any).orcidId}</code>
                       </div>
-                      {selectedContact.enrichedData.educations && selectedContact.enrichedData.educations.length > 0 && (
+                      {(selectedContact.enrichedData as any).educations && (selectedContact.enrichedData as any).educations.length > 0 && (
                         <div>
                           <p className="text-xs text-muted-foreground mb-2">Education</p>
                           <div className="space-y-1">
-                            {selectedContact.enrichedData.educations.slice(0, 3).map((edu: any, i: number) => (
+                            {(selectedContact.enrichedData as any).educations.slice(0, 3).map((edu: any, i: number) => (
                               <p key={i} className="text-xs">
                                 {edu.degree} - {edu.institution} {edu.year && `(${edu.year})`}
                               </p>
@@ -592,11 +592,11 @@ export default function Dashboard() {
                           </div>
                         </div>
                       )}
-                      {selectedContact.enrichedData.employments && selectedContact.enrichedData.employments.length > 0 && (
+                      {(selectedContact.enrichedData as any).employments && (selectedContact.enrichedData as any).employments.length > 0 && (
                         <div>
                           <p className="text-xs text-muted-foreground mb-2">Employment History</p>
                           <div className="space-y-1">
-                            {selectedContact.enrichedData.employments.slice(0, 3).map((emp: any, i: number) => (
+                            {(selectedContact.enrichedData as any).employments.slice(0, 3).map((emp: any, i: number) => (
                               <p key={i} className="text-xs">
                                 {emp.role} at {emp.organization} 
                                 {emp.startDate && ` (${emp.startDate}${emp.endDate ? ` - ${emp.endDate}` : ' - Present'})`}

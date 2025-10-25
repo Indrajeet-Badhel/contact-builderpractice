@@ -1,5 +1,16 @@
 import fetch from 'node-fetch';
 
+/**
+ * Multi-Source Contact Enrichment Service
+ * 
+ * Enriches contact data by fetching information from multiple free APIs:
+ * - GitHub: User profile, repositories, skills derived from languages
+ * - ORCID: Academic profile, publications, employment history, education
+ * 
+ * Additional free sources can be added in the future (e.g., public registries)
+ * All enrichment happens automatically after document extraction
+ */
+
 export interface EnrichmentSource {
   source: string;
   url: string;

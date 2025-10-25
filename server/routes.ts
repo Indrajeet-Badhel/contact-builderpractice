@@ -397,7 +397,7 @@ async function processDocumentExtraction(documentId: string, userId: string, fil
     // Check for duplicates using HuggingFace if API key is available
     let isDuplicate = false;
     let duplicateId = undefined;
-    if (hfKey) {
+    if (hfKey && hfKey.encryptedValue) {
       const existingContacts = await storage.getContacts(userId);
       const dedupeResult = await deduplicateContactData(
         enrichedData,
@@ -434,13 +434,15 @@ async function processDocumentExtraction(documentId: string, userId: string, fil
 
     // Calculate improved confidence score using HuggingFace if available
     let confidenceScore = enrichedData.confidenceScore || 0.85;
-    if (hfKey) {
+    if (hfKey && hfKey.encryptedValue) {
       confidenceScore = await improveConfidenceScore(
         extractedData,
         enrichedData,
         enrichedData.sources,
         hfKey.encryptedValue
       );
+    } else {
+      console.log('HuggingFace API key not configured - using basic confidence scoring');
     }
 
     // Create contact from enriched data
