@@ -79,6 +79,7 @@ export default function ProfilePage() {
       name: 'Gemini AI',
       description: 'Required for AI-powered document extraction',
       keys: [{ name: 'api_key', label: 'API Key', placeholder: 'AIza...' }],
+      category: 'Core Services',
     },
     {
       service: 'gmail',
@@ -88,18 +89,143 @@ export default function ProfilePage() {
         { name: 'client_id', label: 'Client ID', placeholder: 'your-client-id.apps.googleusercontent.com' },
         { name: 'client_secret', label: 'Client Secret', placeholder: 'your-client-secret' },
       ],
+      category: 'Core Services',
     },
     {
       service: 'hubspot',
       name: 'HubSpot CRM',
       description: 'Sync contacts directly to your HubSpot account',
       keys: [{ name: 'api_key', label: 'API Key', placeholder: 'pat-na1-...' }],
+      category: 'CRM & Export',
     },
     {
       service: 'huggingface',
       name: 'Hugging Face',
       description: 'Advanced NLP and entity recognition',
       keys: [{ name: 'api_token', label: 'API Token', placeholder: 'hf_...' }],
+      category: 'Core Services',
+    },
+    {
+      service: 'kaggle',
+      name: 'Kaggle API',
+      description: 'Get user profiles, competitions, and datasets',
+      keys: [
+        { name: 'username', label: 'Username', placeholder: 'your-username' },
+        { name: 'key', label: 'API Key', placeholder: 'your-api-key' },
+      ],
+      category: 'Developer Platforms',
+    },
+    {
+      service: 'github',
+      name: 'GitHub API',
+      description: 'Get repos, user info, contributions, followers',
+      keys: [{ name: 'token', label: 'Personal Access Token', placeholder: 'ghp_...' }],
+      category: 'Developer Platforms',
+    },
+    {
+      service: 'gitlab',
+      name: 'GitLab API',
+      description: 'User projects, commits, and contributions',
+      keys: [{ name: 'token', label: 'Personal Access Token', placeholder: 'glpat-...' }],
+      category: 'Developer Platforms',
+    },
+    {
+      service: 'stack_exchange',
+      name: 'Stack Exchange API',
+      description: 'Q&A data, reputation, tags, user info',
+      keys: [{ name: 'key', label: 'API Key', placeholder: 'your-key' }],
+      category: 'Developer Platforms',
+    },
+    {
+      service: 'devto',
+      name: 'Dev.to API',
+      description: 'Developer articles, profile data, posts',
+      keys: [{ name: 'api_key', label: 'API Key', placeholder: 'your-api-key' }],
+      category: 'Developer Platforms',
+    },
+    {
+      service: 'producthunt',
+      name: 'Product Hunt API',
+      description: 'Product launches and maker profiles',
+      keys: [{ name: 'token', label: 'Access Token', placeholder: 'your-token' }],
+      category: 'Developer Platforms',
+    },
+    {
+      service: 'hashnode',
+      name: 'Hashnode API',
+      description: 'Developer blogs and author details',
+      keys: [{ name: 'token', label: 'Personal Access Token', placeholder: 'your-token' }],
+      category: 'Developer Platforms',
+    },
+    {
+      service: 'wikidata',
+      name: 'Wikidata API',
+      description: 'Structured open data about people and organizations (Free, no key required)',
+      keys: [],
+      category: 'Knowledge & Open Data',
+    },
+    {
+      service: 'dbpedia',
+      name: 'DBpedia API',
+      description: 'Semantic data from Wikipedia (Free, no key required)',
+      keys: [],
+      category: 'Knowledge & Open Data',
+    },
+    {
+      service: 'opencorporates',
+      name: 'OpenCorporates API',
+      description: 'Company registry data - founders, directors',
+      keys: [{ name: 'api_token', label: 'API Token (Optional)', placeholder: 'your-token' }],
+      category: 'Knowledge & Open Data',
+    },
+    {
+      service: 'gdelt',
+      name: 'GDELT API',
+      description: 'News and event database, global mentions (Free, no key required)',
+      keys: [],
+      category: 'Knowledge & Open Data',
+    },
+    {
+      service: 'semantic_scholar',
+      name: 'Semantic Scholar API',
+      description: 'Academic papers and author profiles (Free, no key required)',
+      keys: [],
+      category: 'Academic & Professional',
+    },
+    {
+      service: 'openalex',
+      name: 'OpenAlex API',
+      description: 'Research papers, author ORCID links, citations (Free, no key required)',
+      keys: [],
+      category: 'Academic & Professional',
+    },
+    {
+      service: 'serpapi',
+      name: 'SerpAPI (Google Scholar)',
+      description: 'Search authors and papers on Google Scholar',
+      keys: [{ name: 'api_key', label: 'API Key', placeholder: 'your-serpapi-key' }],
+      category: 'Academic & Professional',
+    },
+    {
+      service: 'orcid',
+      name: 'ORCID API',
+      description: 'Researcher identity, affiliations, works (Free, no key required)',
+      keys: [],
+      category: 'Academic & Professional',
+    },
+    {
+      service: 'gravatar',
+      name: 'Gravatar API',
+      description: 'Fetch public avatars via email hash (Free, no key required)',
+      keys: [],
+      category: 'Academic & Professional',
+    },
+    {
+      service: 'crossref',
+      name: 'CrossRef API',
+      description: 'Publication metadata - DOIs, authors (Free, no key required)',
+      keys: [],
+      category: 'Academic & Professional',
     },
   ];
 
@@ -192,110 +318,129 @@ export default function ProfilePage() {
             <div className="bg-muted/50 border rounded-lg p-4 mb-6">
               <p className="text-sm text-muted-foreground">
                 <strong>Secure Storage:</strong> All API keys are encrypted before storage. 
-                Only you have access to your credentials.
+                Only you have access to your credentials. Services marked as "Free, no key required" can be used without configuration.
               </p>
             </div>
 
-            {apiServices.map((serviceConfig) => {
-              const isConfigured = isServiceConfigured(serviceConfig.service);
-              const serviceKeys = getServiceKeys(serviceConfig.service);
+            {Array.from(new Set(apiServices.map(s => s.category))).map(category => (
+              <div key={category} className="space-y-4">
+                <h2 className="text-xl font-bold text-foreground border-b pb-2">
+                  {category}
+                </h2>
+                {apiServices
+                  .filter(s => s.category === category)
+                  .map((serviceConfig) => {
+                    const isConfigured = isServiceConfigured(serviceConfig.service);
+                    const serviceKeys = getServiceKeys(serviceConfig.service);
+                    const isFreeService = serviceConfig.keys.length === 0;
 
-              return (
-                <Card key={serviceConfig.service} className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-bold text-foreground">
-                          {serviceConfig.name}
-                        </h3>
-                        <Badge variant={isConfigured ? "default" : "secondary"}>
-                          {isConfigured ? (
-                            <>
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Connected
-                            </>
-                          ) : (
-                            <>
-                              <XCircle className="w-3 h-3 mr-1" />
-                              Not Connected
-                            </>
-                          )}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {serviceConfig.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {serviceConfig.keys.map((keyConfig) => {
-                      const existingKey = serviceKeys.find(k => k.keyName === keyConfig.name);
-                      const keyId = existingKey?.id || '';
-
-                      return (
-                        <div key={keyConfig.name} className="space-y-2">
-                          <Label htmlFor={`${serviceConfig.service}-${keyConfig.name}`}>
-                            {keyConfig.label}
-                          </Label>
-                          <div className="flex gap-2">
-                            <div className="flex-1 relative">
-                              <Input
-                                id={`${serviceConfig.service}-${keyConfig.name}`}
-                                type={showKeys[keyId] ? "text" : "password"}
-                                placeholder={keyConfig.placeholder}
-                                defaultValue={existingKey ? "••••••••••••••••" : ""}
-                                onChange={(e) => {
-                                  if (e.target.value && e.target.value !== "••••••••••••••••") {
-                                    saveApiKeyMutation.mutate({
-                                      service: serviceConfig.service,
-                                      keyName: keyConfig.name,
-                                      value: e.target.value,
-                                    });
-                                  }
-                                }}
-                                data-testid={`input-${serviceConfig.service}-${keyConfig.name}`}
-                              />
-                              {existingKey && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                                  onClick={() => toggleShowKey(keyId)}
-                                  data-testid={`button-toggle-visibility-${keyId}`}
-                                >
-                                  {showKeys[keyId] ? (
-                                    <EyeOff className="w-4 h-4" />
+                    return (
+                      <Card key={serviceConfig.service} className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-lg font-bold text-foreground">
+                                {serviceConfig.name}
+                              </h3>
+                              {!isFreeService && (
+                                <Badge variant={isConfigured ? "default" : "secondary"}>
+                                  {isConfigured ? (
+                                    <>
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Connected
+                                    </>
                                   ) : (
-                                    <Eye className="w-4 h-4" />
+                                    <>
+                                      <XCircle className="w-3 h-3 mr-1" />
+                                      Not Connected
+                                    </>
                                   )}
-                                </Button>
+                                </Badge>
+                              )}
+                              {isFreeService && (
+                                <Badge variant="outline" className="text-green-600 border-green-600">
+                                  ✓ Free Access
+                                </Badge>
                               )}
                             </div>
-                            {existingKey && (
-                              <Button
-                                variant="outline"
-                                onClick={() => testApiKeyMutation.mutate(existingKey.id)}
-                                disabled={testApiKeyMutation.isPending}
-                                data-testid={`button-test-${existingKey.id}`}
-                              >
-                                <RefreshCw className={`w-4 h-4 mr-2 ${testApiKeyMutation.isPending ? 'animate-spin' : ''}`} />
-                                Test
-                              </Button>
-                            )}
-                          </div>
-                          {existingKey?.lastValidated && (
-                            <p className="text-xs text-muted-foreground">
-                              Last validated: {new Date(existingKey.lastValidated).toLocaleString()}
+                            <p className="text-sm text-muted-foreground">
+                              {serviceConfig.description}
                             </p>
-                          )}
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              );
-            })}
+
+                        {serviceConfig.keys.length > 0 && (
+                          <div className="space-y-4">
+                            {serviceConfig.keys.map((keyConfig) => {
+                              const existingKey = serviceKeys.find(k => k.keyName === keyConfig.name);
+                              const keyId = existingKey?.id || '';
+
+                              return (
+                                <div key={keyConfig.name} className="space-y-2">
+                                  <Label htmlFor={`${serviceConfig.service}-${keyConfig.name}`}>
+                                    {keyConfig.label}
+                                  </Label>
+                                  <div className="flex gap-2">
+                                    <div className="flex-1 relative">
+                                      <Input
+                                        id={`${serviceConfig.service}-${keyConfig.name}`}
+                                        type={showKeys[keyId] ? "text" : "password"}
+                                        placeholder={keyConfig.placeholder}
+                                        defaultValue={existingKey ? "••••••••••••••••" : ""}
+                                        onChange={(e) => {
+                                          if (e.target.value && e.target.value !== "••••••••••••••••") {
+                                            saveApiKeyMutation.mutate({
+                                              service: serviceConfig.service,
+                                              keyName: keyConfig.name,
+                                              value: e.target.value,
+                                            });
+                                          }
+                                        }}
+                                        data-testid={`input-${serviceConfig.service}-${keyConfig.name}`}
+                                      />
+                                      {existingKey && (
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                                          onClick={() => toggleShowKey(keyId)}
+                                          data-testid={`button-toggle-visibility-${keyId}`}
+                                        >
+                                          {showKeys[keyId] ? (
+                                            <EyeOff className="w-4 h-4" />
+                                          ) : (
+                                            <Eye className="w-4 h-4" />
+                                          )}
+                                        </Button>
+                                      )}
+                                    </div>
+                                    {existingKey && (
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => testApiKeyMutation.mutate(existingKey.id)}
+                                        disabled={testApiKeyMutation.isPending}
+                                        data-testid={`button-test-${existingKey.id}`}
+                                      >
+                                        <RefreshCw className={`w-4 h-4 mr-2 ${testApiKeyMutation.isPending ? 'animate-spin' : ''}`} />
+                                        Test
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {existingKey?.lastValidated && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Last validated: {new Date(existingKey.lastValidated).toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+              </div>
+            ))}
           </TabsContent>
         </Tabs>
       </div>
