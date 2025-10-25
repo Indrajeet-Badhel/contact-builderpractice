@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Sparkles, Database, Search, Upload, Users, CheckCircle, Zap } from "lucide-react";
+import { SiGithub, SiGitlab, SiStackoverflow, SiWikipedia, SiDevdotto, SiHuggingface, SiGooglegemini, SiHubspot, SiKaggle, SiOrca } from "react-icons/si";
 import { motion } from "framer-motion";
 
 export default function Landing() {
@@ -113,6 +114,66 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Platform Integrations Carousel */}
+      <section className="py-12 bg-background border-b">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2 font-['Space_Grotesk']">
+              Powered by Leading Platforms
+            </h3>
+            <p className="text-muted-foreground">
+              We integrate with multiple free data sources for comprehensive enrichment
+            </p>
+          </div>
+          
+          <div className="relative overflow-hidden">
+            <div className="flex gap-8 animate-scroll">
+              {[
+                { icon: SiGithub, name: "GitHub", color: "#181717" },
+                { icon: SiStackoverflow, name: "Stack Overflow", color: "#F48024" },
+                { icon: SiWikipedia, name: "Wikipedia", color: "#000000" },
+                { icon: SiDevdotto, name: "Dev.to", color: "#0A0A0A" },
+                { icon: SiGitlab, name: "GitLab", color: "#FC6D26" },
+                { icon: SiHuggingface, name: "Hugging Face", color: "#FFD21E" },
+                { icon: SiGooglegemini, name: "Gemini AI", color: "#8E75B2" },
+                { icon: SiHubspot, name: "HubSpot", color: "#FF7A59" },
+                { icon: SiKaggle, name: "Kaggle", color: "#20BEFF" },
+                { icon: SiOrca, name: "ORCID", color: "#A6CE39" },
+                { icon: SiGithub, name: "GitHub", color: "#181717" },
+                { icon: SiStackoverflow, name: "Stack Overflow", color: "#F48024" },
+                { icon: SiWikipedia, name: "Wikipedia", color: "#000000" },
+                { icon: SiDevdotto, name: "Dev.to", color: "#0A0A0A" },
+              ].map((platform, index) => (
+                <div
+                  key={index}
+                  className="flex flex-col items-center gap-2 min-w-[120px] p-4 bg-background border rounded-lg hover:border-primary/50 transition-colors"
+                >
+                  <platform.icon className="w-10 h-10" style={{ color: platform.color }} />
+                  <span className="text-xs font-medium text-muted-foreground">{platform.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <style>{`
+        @keyframes scroll {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(calc(-120px * 7 - 32px * 7));
+          }
+        }
+        .animate-scroll {
+          animation: scroll 30s linear infinite;
+        }
+        .animate-scroll:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
 
       {/* Features Grid */}
       <section className="py-16 sm:py-24 bg-muted/30">

@@ -8,6 +8,7 @@ import { extractContactFromDocument, semanticSearchContacts } from "./gemini";
 import { enrichContact } from "./enrichment";
 import { deduplicateContactData, improveConfidenceScore } from "./huggingface";
 import { randomUUID } from "crypto";
+import * as XLSX from "xlsx";
 
 // File upload configuration
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -329,18 +330,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const contacts = await storage.getContacts(userId);
       
-      // Generate CSV
-      const headers = ['Name', 'Email', 'Phone', 'Company', 'Title', 'Location'];
+      // Generate comprehensive CSV with all fields
+      const headers = [
+        'Name', 'Email', 'Phone', 'Company', 'Title', 'Location', 
+        'Bio', 'Skills', 'LinkedIn URL', 'GitHub URL', 'ORCID URL', 'Website URL',
+        'Confidence Score', 'Data Sources', 'Created At'
+      ];
+      
       const rows = contacts.map(c => [
         c.name || '',
         c.email || '',
         c.phone || '',
         c.company || '',
         c.title || '',
-        c.location || ''
+        c.location || '',
+        c.bio || '',
+        (c.skills || []).join('; '),
+        c.linkedinUrl || '',
+        c.githubUrl || '',
+        c.orcidUrl || '',
+        c.websiteUrl || '',
+        c.confidenceScore ? `${(c.confidenceScore * 100).toFixed(0)}%` : '',
+        ((c.enrichedData as any)?.sources || []).map((s: any) => s.source).join(', '),
+        c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''
       ]);
       
-      const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+      const csv = [headers, ...rows].map(row => 
+        row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      ).join('\n');
       
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="contacts.csv"');
@@ -348,6 +365,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error exporting CSV:", error);
       res.status(500).json({ message: "Failed to export CSV" });
+    }
+  });
+
+  app.post('/api/contacts/export/excel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const contacts = await storage.getContacts(userId);
+      
+      const worksheetData = [];
+      
+      worksheetData.push([
+        'Name', 'Email', 'Phone', 'Company', 'Title', 'Location', 
+        'Bio', 'Skills', 'LinkedIn URL', 'GitHub URL', 'ORCID URL', 'Website URL',
+        'Confidence Score', 'Data Sources', 'GitHub Repos', 'Created At'
+      ]);
+      
+      contacts.forEach(c => {
+        const enrichedData = c.enrichedData as any;
+        const sources = enrichedData?.sources || [];
+        const repositories = enrichedData?.repositories || [];
+        
+        worksheetData.push([
+          c.name || '',
+          c.email || '',
+          c.phone || '',
+          c.company || '',
+          c.title || '',
+          c.location || '',
+          c.bio || '',
+          (c.skills || []).join(', '),
+          c.linkedinUrl || '',
+          c.githubUrl || '',
+          c.orcidUrl || '',
+          c.websiteUrl || '',
+          c.confidenceScore ? `${(c.confidenceScore * 100).toFixed(0)}%` : '',
+          sources.map((s: any) => s.source).join(', '),
+          repositories.length > 0 ? repositories.slice(0, 3).map((r: any) => r.name).join(', ') : '',
+          c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''
+        ]);
+      });
+      
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      
+      const columnWidths = [
+        { wch: 20 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
+        { wch: 40 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 25 },
+        { wch: 12 }, { wch: 30 }, { wch: 30 }, { wch: 12 }
+      ];
+      worksheet['!cols'] = columnWidths;
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Contacts');
+      
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="contacts.xlsx"');
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error("Error exporting Excel:", error);
+      res.status(500).json({ message: "Failed to export Excel" });
     }
   });
 

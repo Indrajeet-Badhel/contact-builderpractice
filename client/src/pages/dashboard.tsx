@@ -35,7 +35,15 @@ import {
   XCircle,
   BookOpen,
   Code,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Contact } from "@shared/schema";
 import { motion } from "framer-motion";
 
@@ -91,6 +99,80 @@ export default function Dashboard() {
     });
   };
 
+  const handleExportExcel = async () => {
+    try {
+      const response = await fetch('/api/contacts/export/excel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'contacts.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: "Contacts exported to Excel format",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export contacts",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      const response = await fetch('/api/contacts/export/csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'contacts.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: "Contacts exported to CSV format",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export contacts",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredContacts = contacts.filter(contact => {
     const matchesSearch = 
       contact.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -132,10 +214,24 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" data-testid="button-export">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" data-testid="button-export">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export All
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportExcel} data-testid="menu-export-excel">
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    Export as Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportCSV} data-testid="menu-export-csv">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Export as CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
