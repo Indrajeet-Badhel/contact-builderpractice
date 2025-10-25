@@ -5,6 +5,8 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import multer from "multer";
 import path from "path";
 import { extractContactFromDocument, semanticSearchContacts } from "./gemini";
+import { enrichContact } from "./enrichment";
+import { deduplicateContactData, improveConfidenceScore } from "./huggingface";
 import { randomUUID } from "crypto";
 
 // File upload configuration
@@ -373,26 +375,89 @@ async function processDocumentExtraction(documentId: string, userId: string, fil
 
     // Update progress
     await storage.updateDocument(documentId, userId, {
+      extractionProgress: 50,
+    });
+
+    // Get optional API keys for enrichment
+    const githubKey = await storage.getApiKeyByService(userId, 'github', 'api_key').catch(() => null);
+    const hfKey = await storage.getApiKeyByService(userId, 'huggingface', 'api_key').catch(() => null);
+
+    // Enrich contact data from multiple sources (GitHub, ORCID, etc.)
+    console.log('Starting multi-source enrichment...');
+    const enrichedData = await enrichContact(
+      extractedData,
+      githubKey?.encryptedValue
+    );
+
+    // Update progress
+    await storage.updateDocument(documentId, userId, {
       extractionProgress: 75,
     });
 
-    // Create contact from extracted data
+    // Check for duplicates using HuggingFace if API key is available
+    let isDuplicate = false;
+    let duplicateId = undefined;
+    if (hfKey) {
+      const existingContacts = await storage.getContacts(userId);
+      const dedupeResult = await deduplicateContactData(
+        enrichedData,
+        existingContacts,
+        hfKey.encryptedValue
+      );
+      isDuplicate = dedupeResult.isDuplicate;
+      duplicateId = dedupeResult.duplicateId;
+      
+      if (isDuplicate && duplicateId) {
+        console.log(`Duplicate contact detected: ${duplicateId}. Merging data...`);
+        // Update existing contact with new sources instead of creating duplicate
+        const existing = await storage.getContact(duplicateId, userId);
+        if (existing) {
+          const mergedSources = [...existing.sources, ...enrichedData.sources];
+          await storage.updateContact(duplicateId, userId, {
+            sources: mergedSources,
+            enrichedData: { ...existing.enrichedData, ...enrichedData }
+          });
+        }
+        
+        await storage.updateDocument(documentId, userId, {
+          status: 'completed',
+          extractionProgress: 100,
+        });
+        
+        console.log(`Updated existing contact ${duplicateId} with new data`);
+        return;
+      }
+    }
+
+    // Calculate improved confidence score using HuggingFace if available
+    let confidenceScore = enrichedData.confidenceScore || 0.85;
+    if (hfKey) {
+      confidenceScore = await improveConfidenceScore(
+        extractedData,
+        enrichedData,
+        enrichedData.sources,
+        hfKey.encryptedValue
+      );
+    }
+
+    // Create contact from enriched data
     const contact = await storage.createContact({
       userId,
-      name: extractedData.name || 'Unknown',
-      email: extractedData.email,
-      phone: extractedData.phone,
-      company: extractedData.company,
-      title: extractedData.title,
-      location: extractedData.location,
-      skills: extractedData.skills || [],
-      linkedinUrl: extractedData.linkedinUrl,
-      githubUrl: extractedData.githubUrl,
-      websiteUrl: extractedData.websiteUrl,
-      bio: extractedData.bio,
-      confidenceScore: 0.85, // Default confidence score
-      sources: [{ source: 'document', url: filePath, verified: false }],
+      name: enrichedData.name || 'Unknown',
+      email: enrichedData.email,
+      phone: enrichedData.phone,
+      company: enrichedData.company,
+      title: enrichedData.title,
+      location: enrichedData.location,
+      skills: enrichedData.skills || [],
+      linkedinUrl: enrichedData.linkedinUrl,
+      githubUrl: enrichedData.githubUrl,
+      websiteUrl: enrichedData.websiteUrl,
+      bio: enrichedData.bio,
+      confidenceScore: confidenceScore,
+      sources: enrichedData.sources,
       extractedData: extractedData,
+      enrichedData: enrichedData,
     });
 
     // Update document as completed
