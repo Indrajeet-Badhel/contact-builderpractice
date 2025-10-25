@@ -412,10 +412,13 @@ async function processDocumentExtraction(documentId: string, userId: string, fil
         // Update existing contact with new sources instead of creating duplicate
         const existing = await storage.getContact(duplicateId, userId);
         if (existing) {
-          const mergedSources = [...existing.sources, ...enrichedData.sources];
+          const existingSources = Array.isArray(existing.sources) ? existing.sources : [];
+          const newSources = Array.isArray(enrichedData.sources) ? enrichedData.sources : [];
+          const mergedSources = [...existingSources, ...newSources];
+          const existingEnriched = existing.enrichedData && typeof existing.enrichedData === 'object' ? existing.enrichedData : {};
           await storage.updateContact(duplicateId, userId, {
             sources: mergedSources,
-            enrichedData: { ...existing.enrichedData, ...enrichedData }
+            enrichedData: { ...existingEnriched, ...enrichedData }
           });
         }
         

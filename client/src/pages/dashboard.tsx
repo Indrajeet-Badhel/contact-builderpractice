@@ -30,6 +30,11 @@ import {
   ExternalLink,
   Calendar,
   Tag,
+  Database,
+  CheckCircle2,
+  XCircle,
+  BookOpen,
+  Code,
 } from "lucide-react";
 import type { Contact } from "@shared/schema";
 import { motion } from "framer-motion";
@@ -486,6 +491,121 @@ export default function Dashboard() {
                     <p className="text-sm bg-muted/30 p-4 rounded-lg">
                       {selectedContact.notes}
                     </p>
+                  </div>
+                )}
+
+                {/* Data Sources Section */}
+                {selectedContact.sources && selectedContact.sources.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <Database className="w-4 h-4" />
+                      DATA SOURCES ({selectedContact.sources.length})
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedContact.sources.map((source: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between bg-muted/30 p-3 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            {source.verified ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-yellow-500" />
+                            )}
+                            <div>
+                              <p className="text-sm font-medium capitalize">{source.source}</p>
+                              {source.url && source.url !== 'uploaded_document' && (
+                                <p className="text-xs text-muted-foreground truncate max-w-md">{source.url}</p>
+                              )}
+                            </div>
+                          </div>
+                          <Badge variant={source.verified ? "default" : "secondary"} className="text-xs">
+                            {source.verified ? "Verified" : "Unverified"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* GitHub Repositories Section */}
+                {selectedContact.enrichedData?.repositories && selectedContact.enrichedData.repositories.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <Code className="w-4 h-4" />
+                      GITHUB REPOSITORIES
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedContact.enrichedData.repositories.slice(0, 5).map((repo: any, i: number) => (
+                        <div key={i} className="bg-muted/30 p-3 rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="text-sm font-medium">{repo.name}</h4>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {repo.language && <Badge variant="outline" className="text-xs">{repo.language}</Badge>}
+                              {repo.stars > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3" />
+                                  {repo.stars}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {repo.description && (
+                            <p className="text-xs text-muted-foreground mb-2">{repo.description}</p>
+                          )}
+                          {repo.url && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-xs"
+                              onClick={() => window.open(repo.url, '_blank')}
+                            >
+                              View Repository
+                              <ExternalLink className="w-3 h-3 ml-1" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ORCID Information */}
+                {selectedContact.enrichedData?.orcidId && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" />
+                      ORCID PROFILE
+                    </h3>
+                    <div className="bg-muted/30 p-4 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">ORCID iD</span>
+                        <code className="text-xs bg-background px-2 py-1 rounded">{selectedContact.enrichedData.orcidId}</code>
+                      </div>
+                      {selectedContact.enrichedData.educations && selectedContact.enrichedData.educations.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Education</p>
+                          <div className="space-y-1">
+                            {selectedContact.enrichedData.educations.slice(0, 3).map((edu: any, i: number) => (
+                              <p key={i} className="text-xs">
+                                {edu.degree} - {edu.institution} {edu.year && `(${edu.year})`}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedContact.enrichedData.employments && selectedContact.enrichedData.employments.length > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Employment History</p>
+                          <div className="space-y-1">
+                            {selectedContact.enrichedData.employments.slice(0, 3).map((emp: any, i: number) => (
+                              <p key={i} className="text-xs">
+                                {emp.role} at {emp.organization} 
+                                {emp.startDate && ` (${emp.startDate}${emp.endDate ? ` - ${emp.endDate}` : ' - Present'})`}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
