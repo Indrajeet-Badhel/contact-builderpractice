@@ -116,11 +116,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Query is required" });
       }
 
+      // Get Gemini API key
+      const geminiKey = await storage.getApiKeyByService(userId, 'gemini', 'api_key');
+      if (!geminiKey) {
+        return res.status(400).json({ message: "Gemini API key not configured. Please add it in your profile." });
+      }
+
       // Get all contacts first
       const allContacts = await storage.getContacts(userId);
       
       // Use AI-powered semantic search
-      const results = await semanticSearchContacts(query, allContacts);
+      const results = await semanticSearchContacts(query, allContacts, geminiKey.encryptedValue);
       res.json(results);
     } catch (error) {
       console.error("Error searching contacts:", error);
@@ -345,8 +351,14 @@ async function processDocumentExtraction(documentId: string, userId: string, fil
       extractionProgress: 25,
     });
 
+    // Get Gemini API key
+    const geminiKey = await storage.getApiKeyByService(userId, 'gemini', 'api_key');
+    if (!geminiKey) {
+      throw new Error("Gemini API key not configured. Please add it in your profile.");
+    }
+
     // Extract contact data using Gemini AI
-    const extractedData = await extractContactFromDocument(filePath, mimeType);
+    const extractedData = await extractContactFromDocument(filePath, mimeType, geminiKey.encryptedValue);
 
     // Update progress
     await storage.updateDocument(documentId, userId, {

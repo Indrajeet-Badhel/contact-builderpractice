@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Sparkles } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Sparkles, ArrowRight } from "lucide-react";
+import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -228,6 +229,16 @@ export default function UploadPage() {
                             <p className="text-sm text-destructive mt-2">
                               {uploadedFile.error}
                             </p>
+                          )}
+                          {uploadedFile.status === 'completed' && (
+                            <div className="mt-3 pt-3 border-t">
+                              <Link href="/">
+                                <Button size="sm" className="w-full sm:w-auto" data-testid="button-view-dashboard">
+                                  View in Dashboard
+                                  <ArrowRight className="w-4 h-4 ml-2" />
+                                </Button>
+                              </Link>
+                            </div>
                           )}
                         </div>
                       </div>

@@ -1,8 +1,6 @@
 import * as fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
 export interface ExtractedContactData {
   name?: string;
   email?: string;
@@ -23,7 +21,8 @@ export interface ExtractedContactData {
   }>;
 }
 
-export async function extractContactFromDocument(documentPath: string, mimeType: string): Promise<ExtractedContactData> {
+export async function extractContactFromDocument(documentPath: string, mimeType: string, apiKey: string): Promise<ExtractedContactData> {
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const fileBytes = fs.readFileSync(documentPath);
     
@@ -85,7 +84,8 @@ Be as accurate as possible. Extract all available information.`;
   }
 }
 
-export async function semanticSearchContacts(query: string, contacts: any[]): Promise<any[]> {
+export async function semanticSearchContacts(query: string, contacts: any[], apiKey: string): Promise<any[]> {
+  const ai = new GoogleGenAI({ apiKey });
   try {
     if (!contacts || contacts.length === 0) {
       return [];
