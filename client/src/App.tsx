@@ -25,20 +25,25 @@ function Router() {
     );
   }
 
-  return (
-    <Switch>
-      {!isAuthenticated ? (
+  if (!isAuthenticated) {
+    return (
+      <Switch>
         <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <NavBar />
-          <Route path="/" component={Dashboard} />
-          <Route path="/upload" component={UploadPage} />
-          <Route path="/profile" component={ProfilePage} />
-        </>
-      )}
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    );
+  }
+
+  return (
+    <>
+      <NavBar />
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/upload" component={UploadPage} />
+        <Route path="/profile" component={ProfilePage} />
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 
