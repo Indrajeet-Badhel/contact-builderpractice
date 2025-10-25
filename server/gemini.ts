@@ -71,7 +71,7 @@ Be as accurate as possible. Extract all available information.`;
       ],
     });
 
-    const rawJson = response.response.text();
+    const rawJson = response.text;
     
     if (!rawJson) {
       throw new Error("Empty response from Gemini");
@@ -129,7 +129,7 @@ If no contacts match, return an empty array.`;
       ],
     });
 
-    const rawJson = response.response.text();
+    const rawJson = response.text;
     if (!rawJson) {
       return contacts;
     }

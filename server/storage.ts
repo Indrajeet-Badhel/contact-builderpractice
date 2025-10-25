@@ -88,7 +88,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createContact(contactData: InsertContact): Promise<Contact> {
-    const [contact] = await db.insert(contacts).values(contactData).returning();
+    const [contact] = await db.insert(contacts).values(contactData as any).returning();
     return contact;
   }
 
