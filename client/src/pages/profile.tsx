@@ -101,8 +101,8 @@ export default function ProfilePage() {
     {
       service: 'huggingface',
       name: 'Hugging Face',
-      description: 'Advanced NLP and entity recognition',
-      keys: [{ name: 'api_token', label: 'API Token', placeholder: 'hf_...' }],
+      description: 'Used for deduplication and improved confidence scoring',
+      keys: [{ name: 'api_key', label: 'API Key', placeholder: 'hf_...' }],
       category: 'Core Services',
     },
     {
@@ -118,9 +118,9 @@ export default function ProfilePage() {
     {
       service: 'github',
       name: 'GitHub API',
-      description: 'Get repos, user info, contributions, followers',
-      keys: [{ name: 'token', label: 'Personal Access Token', placeholder: 'ghp_...' }],
-      category: 'Developer Platforms',
+      description: 'Enriches contacts with repos, contributions, and profile data',
+      keys: [{ name: 'api_key', label: 'Personal Access Token', placeholder: 'ghp_...' }],
+      category: 'Data Enrichment',
     },
     {
       service: 'gitlab',
@@ -156,6 +156,13 @@ export default function ProfilePage() {
       description: 'Developer blogs and author details',
       keys: [{ name: 'token', label: 'Personal Access Token', placeholder: 'your-token' }],
       category: 'Developer Platforms',
+    },
+    {
+      service: 'orcid',
+      name: 'ORCID',
+      description: 'Academic and research profile data (Free, no key required)',
+      keys: [],
+      category: 'Data Enrichment',
     },
     {
       service: 'wikidata',
