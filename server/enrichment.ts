@@ -6,8 +6,11 @@ import fetch from 'node-fetch';
  * Enriches contact data by fetching information from multiple free APIs:
  * - GitHub: User profile, repositories, skills derived from languages
  * - ORCID: Academic profile, publications, employment history, education
+ * - Stack Exchange: Developer reputation, badges, profile, answers
+ * - Wikipedia/Wikidata: Biographical data, notable achievements
+ * - GitLab: Projects, contributions, profile data
+ * - Dev.to: Published articles, follower count, tags
  * 
- * Additional free sources can be added in the future (e.g., public registries)
  * All enrichment happens automatically after document extraction
  */
 
@@ -217,6 +220,194 @@ function extractORCIDId(url?: string): string | null {
   return match ? match[1] : null;
 }
 
+export async function enrichContactFromStackExchange(username: string): Promise<EnrichmentSource | null> {
+  try {
+    const response = await fetch(`https://api.stackexchange.com/2.3/users?inname=${encodeURIComponent(username)}&site=stackoverflow&filter=!9Z(-wwYGT`, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json() as any;
+    if (!data.items || data.items.length === 0) {
+      return null;
+    }
+
+    const user = data.items[0];
+    
+    return {
+      source: 'stackoverflow',
+      url: user.link,
+      verified: true,
+      data: {
+        name: user.display_name,
+        reputation: user.reputation,
+        badges: {
+          gold: user.badge_counts?.gold || 0,
+          silver: user.badge_counts?.silver || 0,
+          bronze: user.badge_counts?.bronze || 0
+        },
+        location: user.location,
+        bio: user.about_me?.replace(/<[^>]*>/g, ''),
+        profileImage: user.profile_image,
+        websiteUrl: user.website_url
+      }
+    };
+  } catch (error) {
+    console.error('Error enriching from Stack Exchange:', error);
+    return null;
+  }
+}
+
+export async function enrichContactFromWikipedia(name: string): Promise<EnrichmentSource | null> {
+  try {
+    const searchResponse = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(name)}&format=json&language=en&type=item&limit=5`);
+    const searchData = await searchResponse.json() as any;
+    
+    if (!searchData.search || searchData.search.length === 0) {
+      return null;
+    }
+
+    const humanEntity = searchData.search.find((item: any) => {
+      return item.description?.toLowerCase().includes('person') || 
+             item.description?.toLowerCase().includes('researcher') ||
+             item.description?.toLowerCase().includes('scientist') ||
+             item.description?.toLowerCase().includes('engineer');
+    });
+
+    if (!humanEntity) {
+      return null;
+    }
+
+    const qId = humanEntity.id;
+    const entityResponse = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${qId}.json`);
+    const entityData = await entityResponse.json() as any;
+    const entity = entityData.entities[qId];
+
+    const claims = entity.claims || {};
+    
+    return {
+      source: 'wikidata',
+      url: `https://www.wikidata.org/wiki/${qId}`,
+      verified: true,
+      data: {
+        name: entity.labels?.en?.value,
+        description: entity.descriptions?.en?.value,
+        occupation: claims.P106?.[0]?.mainsnak?.datavalue?.value?.id,
+        dateOfBirth: claims.P569?.[0]?.mainsnak?.datavalue?.value?.time,
+        nationality: claims.P27?.[0]?.mainsnak?.datavalue?.value?.id,
+        educatedAt: claims.P69?.map((c: any) => c.mainsnak?.datavalue?.value?.id),
+        awards: claims.P166?.map((c: any) => c.mainsnak?.datavalue?.value?.id),
+        wikidataId: qId
+      }
+    };
+  } catch (error) {
+    console.error('Error enriching from Wikipedia:', error);
+    return null;
+  }
+}
+
+export async function enrichContactFromGitLab(username: string, gitlabToken?: string): Promise<EnrichmentSource | null> {
+  try {
+    const headers: any = {
+      'Accept': 'application/json'
+    };
+    
+    if (gitlabToken) {
+      headers['PRIVATE-TOKEN'] = gitlabToken;
+    }
+
+    const usersResponse = await fetch(`https://gitlab.com/api/v4/users?username=${username}`, { headers });
+    
+    if (!usersResponse.ok) {
+      return null;
+    }
+
+    const users = await usersResponse.json() as any;
+    if (!Array.isArray(users) || users.length === 0) {
+      return null;
+    }
+
+    const user = users[0];
+    
+    const projectsResponse = await fetch(`https://gitlab.com/api/v4/users/${user.id}/projects?per_page=10&order_by=updated_at`, { headers });
+    const projects = await projectsResponse.json() as any;
+
+    return {
+      source: 'gitlab',
+      url: user.web_url,
+      verified: true,
+      data: {
+        name: user.name,
+        username: user.username,
+        bio: user.bio,
+        location: user.location,
+        websiteUrl: user.website_url,
+        publicEmail: user.public_email,
+        projects: Array.isArray(projects) ? projects.map((p: any) => ({
+          name: p.name,
+          description: p.description,
+          url: p.web_url,
+          stars: p.star_count,
+          forks: p.forks_count
+        })) : []
+      }
+    };
+  } catch (error) {
+    console.error('Error enriching from GitLab:', error);
+    return null;
+  }
+}
+
+export async function enrichContactFromDevTo(username: string): Promise<EnrichmentSource | null> {
+  try {
+    const response = await fetch(`https://dev.to/api/users/by_username?url=${username}`, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const user = await response.json() as any;
+    
+    const articlesResponse = await fetch(`https://dev.to/api/articles?username=${username}&per_page=10`);
+    const articles = await articlesResponse.json() as any;
+
+    return {
+      source: 'devto',
+      url: `https://dev.to/${username}`,
+      verified: true,
+      data: {
+        name: user.name,
+        username: user.username,
+        bio: user.summary,
+        location: user.location,
+        websiteUrl: user.website_url,
+        githubUrl: user.github_username ? `https://github.com/${user.github_username}` : undefined,
+        twitterUrl: user.twitter_username ? `https://twitter.com/${user.twitter_username}` : undefined,
+        profileImage: user.profile_image,
+        articles: Array.isArray(articles) ? articles.map((a: any) => ({
+          title: a.title,
+          description: a.description,
+          url: a.url,
+          publishedAt: a.published_at,
+          tags: a.tag_list
+        })) : []
+      }
+    };
+  } catch (error) {
+    console.error('Error enriching from Dev.to:', error);
+    return null;
+  }
+}
+
 export async function enrichContact(
   extractedData: any,
   githubToken?: string
@@ -273,6 +464,43 @@ export async function enrichContact(
       if (orcidData.data.educations) {
         allData.education = [...(allData.education || []), ...orcidData.data.educations];
       }
+    }
+  }
+
+  if (extractedData.name) {
+    const stackExchangeData = await enrichContactFromStackExchange(extractedData.name);
+    if (stackExchangeData) {
+      sources.push(stackExchangeData);
+      allData.name = allData.name || stackExchangeData.data.name;
+      allData.bio = allData.bio || stackExchangeData.data.bio;
+      allData.location = allData.location || stackExchangeData.data.location;
+      allData.websiteUrl = allData.websiteUrl || stackExchangeData.data.websiteUrl;
+    }
+
+    const wikipediaData = await enrichContactFromWikipedia(extractedData.name);
+    if (wikipediaData) {
+      sources.push(wikipediaData);
+      allData.name = allData.name || wikipediaData.data.name;
+    }
+
+    const devtoData = await enrichContactFromDevTo(extractedData.name.toLowerCase().replace(/\s+/g, ''));
+    if (devtoData) {
+      sources.push(devtoData);
+      allData.name = allData.name || devtoData.data.name;
+      allData.bio = allData.bio || devtoData.data.bio;
+      allData.location = allData.location || devtoData.data.location;
+      allData.websiteUrl = allData.websiteUrl || devtoData.data.websiteUrl;
+    }
+  }
+
+  if (githubUsername) {
+    const gitlabData = await enrichContactFromGitLab(githubUsername, undefined);
+    if (gitlabData) {
+      sources.push(gitlabData);
+      allData.name = allData.name || gitlabData.data.name;
+      allData.bio = allData.bio || gitlabData.data.bio;
+      allData.location = allData.location || gitlabData.data.location;
+      allData.websiteUrl = allData.websiteUrl || gitlabData.data.websiteUrl;
     }
   }
 
