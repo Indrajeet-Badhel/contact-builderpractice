@@ -5,6 +5,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Search,
   Download,
   Mail,
@@ -19,6 +26,9 @@ import {
   Filter,
   SortAsc,
   Users,
+  ExternalLink,
+  Calendar,
+  Tag,
 } from "lucide-react";
 import type { Contact } from "@shared/schema";
 import { motion } from "framer-motion";
@@ -26,6 +36,7 @@ import { motion } from "framer-motion";
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   const { data: contacts = [], isLoading } = useQuery<Contact[]>({
     queryKey: ['/api/contacts'],
@@ -181,7 +192,11 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-                <Card className="p-6 hover-elevate active-elevate-2 transition-all border-2 h-full" data-testid={`card-contact-${contact.id}`}>
+                <Card 
+                  className="p-6 hover-elevate active-elevate-2 transition-all border-2 h-full cursor-pointer" 
+                  data-testid={`card-contact-${contact.id}`}
+                  onClick={() => setSelectedContact(contact)}
+                >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-foreground mb-1">
@@ -268,6 +283,222 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Contact Detail Modal */}
+      <Dialog open={selectedContact !== null} onOpenChange={(open) => !open && setSelectedContact(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {selectedContact && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-black font-['Space_Grotesk'] flex items-center gap-3">
+                  {selectedContact.name}
+                  <Badge variant="secondary">
+                    <span className={getConfidenceColor(selectedContact.confidenceScore || 0)}>
+                      {Math.round((selectedContact.confidenceScore || 0) * 100)}%
+                    </span>
+                  </Badge>
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedContact.title && selectedContact.company 
+                    ? `${selectedContact.title} at ${selectedContact.company}`
+                    : selectedContact.title || selectedContact.company || "Contact Details"}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-6 mt-4">
+                {/* Contact Information Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    CONTACT INFORMATION
+                  </h3>
+                  <div className="space-y-3 bg-muted/30 p-4 rounded-lg">
+                    {selectedContact.email && (
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm">{selectedContact.email}</span>
+                      </div>
+                    )}
+                    {selectedContact.phone && (
+                      <div className="flex items-center gap-3">
+                        <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm">{selectedContact.phone}</span>
+                      </div>
+                    )}
+                    {selectedContact.location && (
+                      <div className="flex items-center gap-3">
+                        <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm">{selectedContact.location}</span>
+                      </div>
+                    )}
+                    {selectedContact.company && (
+                      <div className="flex items-center gap-3">
+                        <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm">{selectedContact.company}</span>
+                      </div>
+                    )}
+                    {selectedContact.title && (
+                      <div className="flex items-center gap-3">
+                        <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm">{selectedContact.title}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bio Section */}
+                {selectedContact.bio && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3">BIO</h3>
+                    <p className="text-sm bg-muted/30 p-4 rounded-lg leading-relaxed">
+                      {selectedContact.bio}
+                    </p>
+                  </div>
+                )}
+
+                {/* Skills Section */}
+                {selectedContact.skills && selectedContact.skills.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      SKILLS & EXPERTISE
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedContact.skills.map((skill, i) => (
+                        <Badge key={i} variant="secondary">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags Section */}
+                {selectedContact.tags && selectedContact.tags.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <Tag className="w-4 h-4" />
+                      TAGS
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedContact.tags.map((tag, i) => (
+                        <Badge key={i} variant="outline">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Social Links Section */}
+                {(selectedContact.linkedinUrl || selectedContact.githubUrl || selectedContact.websiteUrl) && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      SOCIAL PROFILES
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedContact.linkedinUrl && (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => window.open(selectedContact.linkedinUrl!, '_blank')}
+                        >
+                          <Linkedin className="w-4 h-4 mr-2" />
+                          LinkedIn Profile
+                          <ExternalLink className="w-3 h-3 ml-auto" />
+                        </Button>
+                      )}
+                      {selectedContact.githubUrl && (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => window.open(selectedContact.githubUrl!, '_blank')}
+                        >
+                          <Github className="w-4 h-4 mr-2" />
+                          GitHub Profile
+                          <ExternalLink className="w-3 h-3 ml-auto" />
+                        </Button>
+                      )}
+                      {selectedContact.websiteUrl && (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => window.open(selectedContact.websiteUrl!, '_blank')}
+                        >
+                          <Globe className="w-4 h-4 mr-2" />
+                          Personal Website
+                          <ExternalLink className="w-3 h-3 ml-auto" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes Section */}
+                {selectedContact.notes && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-3">NOTES</h3>
+                    <p className="text-sm bg-muted/30 p-4 rounded-lg">
+                      {selectedContact.notes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Metadata Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    METADATA
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 text-sm bg-muted/30 p-4 rounded-lg">
+                    {selectedContact.createdAt && (
+                      <div>
+                        <p className="text-muted-foreground mb-1">Created</p>
+                        <p className="font-medium">
+                          {new Date(selectedContact.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+                    {selectedContact.updatedAt && (
+                      <div>
+                        <p className="text-muted-foreground mb-1">Last Updated</p>
+                        <p className="font-medium">
+                          {new Date(selectedContact.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-muted-foreground mb-1">Confidence Score</p>
+                      <p className={`font-medium ${getConfidenceColor(selectedContact.confidenceScore || 0)}`}>
+                        {getConfidenceBadge(selectedContact.confidenceScore || 0)}
+                      </p>
+                    </div>
+                    {selectedContact.sources && selectedContact.sources.length > 0 && (
+                      <div>
+                        <p className="text-muted-foreground mb-1">Data Sources</p>
+                        <p className="font-medium">{selectedContact.sources.length} source(s)</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button className="flex-1" variant="default">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Contact
+                  </Button>
+                  <Button className="flex-1" variant="outline">
+                    <Building2 className="w-4 h-4 mr-2" />
+                    Sync to CRM
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

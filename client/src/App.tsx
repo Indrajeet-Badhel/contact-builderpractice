@@ -39,6 +39,7 @@ function Router() {
       <NavBar />
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/upload" component={UploadPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route component={NotFound} />
