@@ -1,15 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Sparkles, ArrowRight } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, CheckCircle, XCircle, Loader2, Sparkles, ArrowRight, RefreshCw, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { Document } from "@shared/schema";
 
 interface UploadedFile {
   id: string;
@@ -25,6 +26,17 @@ export default function UploadPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Fetch all documents from backend
+  const { data: documents = [], refetch } = useQuery<Document[]>({
+    queryKey: ['/api/documents'],
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // Auto-refetch every 3 seconds if any documents are processing
+      const hasProcessing = data?.some(d => d.status === 'processing');
+      return hasProcessing ? 3000 : false;
+    },
+  });
+
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -32,34 +44,16 @@ export default function UploadPage() {
       return await apiRequest('POST', '/api/documents/upload', formData);
     },
     onSuccess: (data, file) => {
-      const fileId = uploadedFiles.find(f => f.file === file)?.id;
-      if (fileId) {
-        setUploadedFiles(prev => prev.map(f => 
-          f.id === fileId ? { ...f, status: 'processing' as const, progress: 50 } : f
-        ));
-        
-        // Simulate extraction progress
-        setTimeout(() => {
-          setUploadedFiles(prev => prev.map(f => 
-            f.id === fileId ? { ...f, status: 'completed' as const, progress: 100, extractedData: data } : f
-          ));
-          
-          toast({
-            title: "Extraction Complete",
-            description: `Successfully extracted contact data from ${file.name}`,
-          });
-          
-          queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
-        }, 2000);
-      }
+      toast({
+        title: "Upload Started",
+        description: `Extracting contact data from ${file.name}...`,
+      });
+      
+      // Refetch documents to get the new one
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
     },
     onError: (error: Error, file) => {
-      const fileId = uploadedFiles.find(f => f.file === file)?.id;
-      if (fileId) {
-        setUploadedFiles(prev => prev.map(f => 
-          f.id === fileId ? { ...f, status: 'failed' as const, error: error.message } : f
-        ));
-      }
       toast({
         title: "Upload Failed",
         description: error.message,
@@ -67,6 +61,27 @@ export default function UploadPage() {
       });
     },
   });
+
+  // Show toast when extraction completes or fails
+  useEffect(() => {
+    documents.forEach(doc => {
+      const wasProcessing = uploadedFiles.find(f => f.file.name === doc.originalName)?.status === 'processing';
+      
+      if (doc.status === 'completed' && wasProcessing) {
+        toast({
+          title: "Extraction Complete",
+          description: `Successfully extracted contact data from ${doc.originalName}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
+      } else if (doc.status === 'failed' && wasProcessing) {
+        toast({
+          title: "Extraction Failed",
+          description: `Failed to extract data from ${doc.originalName}. The AI service may be overloaded. Please try again.`,
+          variant: "destructive",
+        });
+      }
+    });
+  }, [documents]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles: UploadedFile[] = acceptedFiles.map(file => ({
@@ -171,73 +186,96 @@ export default function UploadPage() {
           </div>
         </Card>
 
-        {/* Uploaded Files List */}
-        {uploadedFiles.length > 0 && (
+        {/* Document List */}
+        {documents.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
               <Sparkles className="w-5 h-5" />
-              Processing Files
+              Documents ({documents.length})
             </h2>
             <AnimatePresence mode="popLayout">
-              {uploadedFiles.map((uploadedFile) => {
-                const FileIcon = getFileIcon(uploadedFile.file);
-                const StatusIcon = getStatusIcon(uploadedFile.status);
+              {documents.map((document) => {
+                const StatusIcon = getStatusIcon(document.status as UploadedFile['status']);
                 
                 return (
                   <motion.div
-                    key={uploadedFile.id}
+                    key={document.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -100 }}
                     layout
                   >
                     <Card className="p-4">
                       <div className="flex items-start gap-4">
                         <div className="p-2 bg-muted rounded-lg shrink-0">
-                          <FileIcon className="w-6 h-6 text-muted-foreground" />
+                          <FileText className="w-6 h-6 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-4 mb-2">
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-foreground truncate">
-                                {uploadedFile.file.name}
+                                {document.originalName}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                {(uploadedFile.file.size / 1024).toFixed(1)} KB
+                                {(document.fileSize / 1024).toFixed(1)} KB • {new Date(document.uploadedAt!).toLocaleDateString()}
                               </p>
                             </div>
-                            <Badge variant={getStatusColor(uploadedFile.status)}>
+                            <Badge variant={getStatusColor(document.status as UploadedFile['status'])}>
                               <StatusIcon className={`w-3 h-3 mr-1 ${
-                                uploadedFile.status === 'uploading' || uploadedFile.status === 'processing' 
+                                document.status === 'pending' || document.status === 'processing' 
                                   ? 'animate-spin' 
                                   : ''
                               }`} />
-                              {uploadedFile.status}
+                              {document.status}
                             </Badge>
                           </div>
-                          {uploadedFile.status !== 'failed' && (
+                          {(document.status === 'pending' || document.status === 'processing') && (
                             <div className="space-y-1">
-                              <Progress value={uploadedFile.progress} className="h-2" />
+                              <Progress value={document.extractionProgress || 0} className="h-2" />
                               <p className="text-xs text-muted-foreground">
-                                {uploadedFile.status === 'uploading' && 'Uploading...'}
-                                {uploadedFile.status === 'processing' && 'Extracting contact data with AI...'}
-                                {uploadedFile.status === 'completed' && 'Extraction complete!'}
+                                {document.status === 'pending' && 'Queued for processing...'}
+                                {document.status === 'processing' && 'Extracting contact data with AI...'}
                               </p>
                             </div>
                           )}
-                          {uploadedFile.error && (
-                            <p className="text-sm text-destructive mt-2">
-                              {uploadedFile.error}
-                            </p>
+                          {document.status === 'failed' && (
+                            <div className="mt-2 space-y-2">
+                              <div className="flex items-start gap-2 p-3 bg-destructive/10 rounded-lg">
+                                <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-sm text-destructive font-medium">Extraction Failed</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    The AI service is currently overloaded. This is a temporary issue with Google's Gemini API.
+                                  </p>
+                                </div>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Retry Coming Soon",
+                                    description: "The retry feature will be available soon. Please try uploading the document again.",
+                                  });
+                                }}
+                                data-testid={`button-retry-${document.id}`}
+                              >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Retry Extraction
+                              </Button>
+                            </div>
                           )}
-                          {uploadedFile.status === 'completed' && (
-                            <div className="mt-3 pt-3 border-t">
+                          {document.status === 'completed' && (
+                            <div className="mt-3 pt-3 border-t flex gap-2">
                               <Link href="/">
-                                <Button size="sm" className="w-full sm:w-auto" data-testid="button-view-dashboard">
-                                  View in Dashboard
+                                <Button size="sm" variant="default" data-testid="button-view-dashboard">
+                                  View Contact
                                   <ArrowRight className="w-4 h-4 ml-2" />
                                 </Button>
                               </Link>
+                              <Button size="sm" variant="outline">
+                                <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                                Success
+                              </Button>
                             </div>
                           )}
                         </div>
@@ -250,7 +288,7 @@ export default function UploadPage() {
           </div>
         )}
 
-        {uploadedFiles.length === 0 && (
+        {documents.length === 0 && (
           <Card className="p-12 text-center border-dashed">
             <Sparkles className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
