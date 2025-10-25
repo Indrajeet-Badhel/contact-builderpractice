@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import {
   Search,
   Download,
@@ -37,10 +38,53 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const { toast } = useToast();
 
   const { data: contacts = [], isLoading } = useQuery<Contact[]>({
     queryKey: ['/api/contacts'],
   });
+
+  const handleExportContact = (contact: Contact) => {
+    const exportData = {
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      company: contact.company,
+      title: contact.title,
+      location: contact.location,
+      skills: contact.skills,
+      linkedinUrl: contact.linkedinUrl,
+      githubUrl: contact.githubUrl,
+      websiteUrl: contact.websiteUrl,
+      bio: contact.bio,
+      confidenceScore: contact.confidenceScore,
+      tags: contact.tags,
+      notes: contact.notes,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${contact.name.replace(/\s+/g, '_')}_contact.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Contact Exported",
+      description: `${contact.name}'s contact information has been downloaded as JSON.`,
+    });
+  };
+
+  const handleSyncToCRM = (contact: Contact) => {
+    toast({
+      title: "CRM Sync Coming Soon",
+      description: "This feature will sync contacts to your CRM platform. Configure your CRM integration in the Profile settings.",
+      variant: "default",
+    });
+  };
 
   const filteredContacts = contacts.filter(contact => {
     const matchesSearch = 
@@ -485,11 +529,19 @@ export default function Dashboard() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-3 pt-4 border-t">
-                  <Button className="flex-1" variant="default">
+                  <Button 
+                    className="flex-1" 
+                    variant="default"
+                    onClick={() => handleExportContact(selectedContact)}
+                  >
                     <Download className="w-4 h-4 mr-2" />
                     Export Contact
                   </Button>
-                  <Button className="flex-1" variant="outline">
+                  <Button 
+                    className="flex-1" 
+                    variant="outline"
+                    onClick={() => handleSyncToCRM(selectedContact)}
+                  >
                     <Building2 className="w-4 h-4 mr-2" />
                     Sync to CRM
                   </Button>
