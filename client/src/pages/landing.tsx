@@ -1,11 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Sparkles, Database, Search, Upload, Users, CheckCircle, Zap, Beaker } from "lucide-react";
+import { FileText, Sparkles, Database, Search, Upload, Users, CheckCircle, Zap, Beaker, LayoutDashboard, LogOut } from "lucide-react";
 import { SiGithub, SiGitlab, SiStackoverflow, SiWikipedia, SiDevdotto, SiHuggingface, SiGooglegemini, SiHubspot, SiKaggle } from "react-icons/si";
 import { motion } from "framer-motion";
+import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
 
 export default function Landing() {
+  const { isAuthenticated, user } = useAuth();
+
   const features = [
     {
       icon: Upload,
@@ -37,6 +41,35 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Top Navigation Bar for authenticated users */}
+      {isAuthenticated && (
+        <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 font-black text-xl font-['Space_Grotesk']">
+              <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center rounded-md font-black">
+                CB
+              </div>
+              Contact Builder
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                Welcome, {user?.firstName || user?.email || 'User'}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.location.href = '/api/logout'}
+                className="gap-2"
+                data-testid="button-logout"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
+            </div>
+          </div>
+        </nav>
+      )}
+
       {/* Hero Section */}
       <section className="relative overflow-hidden border-b">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,0,0,0.03),transparent_50%)]" />
@@ -73,15 +106,29 @@ export default function Landing() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="flex flex-col sm:flex-row gap-4 pt-4"
             >
-              <Button
-                size="lg"
-                className="text-base px-8 py-6 h-auto font-semibold"
-                onClick={() => window.location.href = "/api/login"}
-                data-testid="button-get-started"
-              >
-                <Zap className="w-5 h-5 mr-2" />
-                Sign in with Google
-              </Button>
+              {isAuthenticated ? (
+                <Link href="/dashboard">
+                  <Button
+                    size="lg"
+                    className="text-base px-8 py-6 h-auto font-semibold"
+                    data-testid="button-go-to-dashboard"
+                  >
+                    <LayoutDashboard className="w-5 h-5 mr-2" />
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/login">
+                  <Button
+                    size="lg"
+                    className="text-base px-8 py-6 h-auto font-semibold"
+                    data-testid="button-get-started"
+                  >
+                    <Zap className="w-5 h-5 mr-2" />
+                    Sign In
+                  </Button>
+                </Link>
+              )}
               <Button
                 size="lg"
                 variant="outline"
@@ -276,16 +323,31 @@ export default function Landing() {
           <p className="text-lg sm:text-xl mb-8 opacity-90 max-w-2xl mx-auto">
             Start extracting professional contact profiles with AI today. No credit card required.
           </p>
-          <Button
-            size="lg"
-            variant="secondary"
-            className="text-base px-8 py-6 h-auto font-semibold text-foreground bg-background hover:bg-background/90"
-            onClick={() => window.location.href = "/api/login"}
-            data-testid="button-cta-signup"
-          >
-            <Users className="w-5 h-5 mr-2" />
-            Sign in with Google
-          </Button>
+          {isAuthenticated ? (
+            <Link href="/dashboard">
+              <Button
+                size="lg"
+                variant="secondary"
+                className="text-base px-8 py-6 h-auto font-semibold text-foreground bg-background hover:bg-background/90"
+                data-testid="button-cta-dashboard"
+              >
+                <LayoutDashboard className="w-5 h-5 mr-2" />
+                Go to Dashboard
+              </Button>
+            </Link>
+          ) : (
+            <Link href="/login">
+              <Button
+                size="lg"
+                variant="secondary"
+                className="text-base px-8 py-6 h-auto font-semibold text-foreground bg-background hover:bg-background/90"
+                data-testid="button-cta-signup"
+              >
+                <Users className="w-5 h-5 mr-2" />
+                Sign In
+              </Button>
+            </Link>
+          )}
         </div>
       </section>
     </div>
