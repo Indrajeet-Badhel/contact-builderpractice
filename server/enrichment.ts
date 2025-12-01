@@ -408,10 +408,18 @@ export async function enrichContactFromDevTo(username: string): Promise<Enrichme
   }
 }
 
+export interface EnrichmentOptions {
+  // when true: do NOT call APIs by just using the name
+  // only enrich when we have explicit URLs / usernames
+  conservative?: boolean;
+}
+
 export async function enrichContact(
   extractedData: any,
-  githubToken?: string
+  githubToken?: string,
+  options: EnrichmentOptions = {}
 ): Promise<EnrichedContactData> {
+  const conservative = options.conservative ?? false;
   const sources: EnrichmentSource[] = [];
   const allData: any = { ...extractedData };
 
@@ -440,34 +448,36 @@ export async function enrichContact(
     }
   }
 
+  // Only use ORCID if the document explicitly provided an ORCID URL.
+  // This avoids random people with the same name.
   let orcidId = extractORCIDId(extractedData.orcidUrl);
-  
-  if (!orcidId && extractedData.name) {
-    orcidId = await searchORCIDByName(extractedData.name);
-  }
+
+  // TEMP: disable name-based ORCID guessing to avoid wrong matches
+  // if (!orcidId && extractedData.name) {
+  //   orcidId = await searchORCIDByName(extractedData.name);
+  // }
+
 
   if (orcidId) {
     const orcidData = await enrichContactFromORCID(orcidId);
     if (orcidData) {
       sources.push(orcidData);
-      
-      allData.name = allData.name || orcidData.data.name;
+
+      // Don't change name/email/company/title from ORCID.
+      // Only add bio/education/publications.
       allData.bio = allData.bio || orcidData.data.bio;
       allData.orcidUrl = orcidData.url;
-      
-      if (orcidData.data.employments && orcidData.data.employments.length > 0) {
-        const latestEmployment = orcidData.data.employments[0];
-        allData.company = allData.company || latestEmployment.organization;
-        allData.title = allData.title || latestEmployment.role;
-      }
-      
+
       if (orcidData.data.educations) {
-        allData.education = [...(allData.education || []), ...orcidData.data.educations];
+        allData.education = [
+          ...(Array.isArray(allData.education) ? allData.education : []),
+          ...orcidData.data.educations,
+        ];
       }
     }
   }
 
-  if (extractedData.name) {
+  if (!conservative && extractedData.name) {
     const stackExchangeData = await enrichContactFromStackExchange(extractedData.name);
     if (stackExchangeData) {
       sources.push(stackExchangeData);
@@ -483,7 +493,9 @@ export async function enrichContact(
       allData.name = allData.name || wikipediaData.data.name;
     }
 
-    const devtoData = await enrichContactFromDevTo(extractedData.name.toLowerCase().replace(/\s+/g, ''));
+    const devtoData = await enrichContactFromDevTo(
+      extractedData.name.toLowerCase().replace(/\s+/g, "")
+    );
     if (devtoData) {
       sources.push(devtoData);
       allData.name = allData.name || devtoData.data.name;

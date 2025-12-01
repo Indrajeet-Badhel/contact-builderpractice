@@ -4,11 +4,98 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./simpleAuth";
 import multer from "multer";
 import path from "path";
-import { extractContactFromDocument, semanticSearchContacts } from "./gemini";
+import { extractContactFromDocument, semanticSearchContacts, extractContactFromWebsite} from "./gemini";
 import { enrichContact } from "./enrichment";
 import { deduplicateContactData, improveConfidenceScore } from "./huggingface";
 import { randomUUID } from "crypto";
 import * as XLSX from "xlsx";
+
+function normalizeString(value?: string | null): string {
+  return (value || "").toLowerCase().trim();
+}
+
+function normalizeUrl(value?: string | null): string {
+  if (!value) return "";
+  try {
+    const u = new URL(value);
+    // ignore trailing slashes & query for dedupe purposes
+    return `${u.origin}${u.pathname}`.toLowerCase().replace(/\/+$/, "");
+  } catch {
+    return value.toLowerCase().trim();
+  }
+}
+
+function areLikelySamePerson(a: any, b: any): boolean {
+  const nameA = normalizeString(a.name);
+  const nameB = normalizeString(b.name);
+
+  if (!nameA || !nameB) return false;
+  if (nameA !== nameB) return false;
+
+  // If both have email and they're different → not the same
+  const emailA = normalizeString(a.email);
+  const emailB = normalizeString(b.email);
+  if (emailA && emailB && emailA !== emailB) return false;
+
+  // If both have GitHub URL and they're different → not the same
+  const ghA = normalizeUrl(a.githubUrl);
+  const ghB = normalizeUrl(b.githubUrl);
+  if (ghA && ghB && ghA !== ghB) return false;
+
+  // Otherwise, same name + no strong contradiction → treat as same person
+  return true;
+}
+
+function mergeSources(
+  existing: any[] = [],
+  incoming: any[] = []
+): any[] {
+  const merged = [...existing];
+  const seen = new Set(
+    existing.map((s) => `${s.source}:${s.url || ""}`)
+  );
+
+  for (const s of incoming) {
+    const key = `${s.source}:${s.url || ""}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(s);
+    }
+  }
+  return merged;
+}
+
+function mergeSkills(existing: string[] = [], incoming: string[] = []): string[] {
+  return Array.from(new Set([...(existing || []), ...(incoming || [])]));
+}
+
+// url based searching
+function detectProvider(rawUrl: string):
+  | 'github'
+  | 'orcid'
+  | 'stackoverflow'
+  | 'gitlab'
+  | 'devto'
+  | 'linkedin'
+  | 'website'
+  | 'unknown' {
+  try {
+    const url = new URL(rawUrl);
+    const host = url.hostname.toLowerCase();
+
+    if (host === 'github.com') return 'github';
+    if (host === 'orcid.org') return 'orcid';
+    if (host === 'stackoverflow.com' || host.endsWith('.stackexchange.com')) return 'stackoverflow';
+    if (host === 'gitlab.com') return 'gitlab';
+    if (host === 'dev.to') return 'devto';
+    if (host === 'www.linkedin.com' || host === 'linkedin.com') return 'linkedin';
+
+    // everything else – treat as generic website
+    return 'website';
+  } catch {
+    return 'unknown';
+  }
+}
 
 // File upload configuration
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -439,6 +526,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create / enrich a contact from a URL (GitHub, ORCID, etc.)
+    // Create / enrich a contact from a URL (GitHub, ORCID, etc.)
+  app.post("/api/contacts/from-url", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { url } = req.body;
+
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ message: "URL is required" });
+      }
+
+      // get Gemini key
+      const geminiKey = await storage.getApiKeyByService(
+        userId,
+        "gemini",
+        "api_key"
+      );
+      if (!geminiKey) {
+        return res.status(400).json({
+          message:
+            "Gemini API key not configured. Please add it in your profile.",
+        });
+      }
+
+      // 1) extract from website
+      const extracted = await extractContactFromWebsite(
+        url,
+        geminiKey.encryptedValue
+      );
+
+      // 2) optional enrichment (GitHub, ORCID, etc.)
+      const githubKey = await storage
+        .getApiKeyByService(userId, "github", "api_key")
+        .catch(() => null);
+      const enriched = await enrichContact(
+        extracted,
+        githubKey?.encryptedValue,
+        {
+          conservative: true, // we’re already using a specific URL, be safer
+        }
+      );
+
+      // 3) check for duplicates FIRST
+      const existingContacts = await storage.getContacts(userId);
+
+      // (A) find by email / GitHub / name using heuristic
+      const possibleDuplicate = existingContacts.find((c) =>
+        areLikelySamePerson(
+          {
+            name: enriched.name || extracted.name,
+            email: enriched.email || extracted.email,
+            githubUrl: enriched.githubUrl || extracted.githubUrl,
+          },
+          {
+            name: c.name,
+            email: c.email,
+            githubUrl: c.githubUrl,
+          }
+        )
+      );
+
+      // if you also want to use HF dedupe here, you can add something like:
+      // const hfKey = await storage.getApiKeyByService(userId, "huggingface", "api_key").catch(() => null);
+      // and call deduplicateContactData(enriched, existingContacts, hfKey.encryptedValue)
+      // then pick duplicateId from that result instead of / in addition to possibleDuplicate.
+
+      const baseSources: any[] = [
+        { source: "website", url, verified: false },
+        ...(enriched.sources || []),
+      ];
+
+      if (possibleDuplicate) {
+        // 4) merge into existing contact
+        const mergedSources = mergeSources(
+          (possibleDuplicate.sources as any[]) || [],
+          baseSources
+        );
+
+        const mergedSkills = mergeSkills(
+          possibleDuplicate.skills || [],
+          enriched.skills || extracted.skills || []
+        );
+
+        const updated = await storage.updateContact(
+          possibleDuplicate.id,
+          userId,
+          {
+            name:
+              possibleDuplicate.name ||
+              enriched.name ||
+              extracted.name ||
+              "Unknown",
+            email:
+              possibleDuplicate.email ||
+              enriched.email ||
+              extracted.email,
+            phone:
+              possibleDuplicate.phone ||
+              enriched.phone ||
+              extracted.phone,
+            company:
+              possibleDuplicate.company ||
+              enriched.company ||
+              extracted.company,
+            title:
+              possibleDuplicate.title ||
+              enriched.title ||
+              extracted.title,
+            location:
+              possibleDuplicate.location ||
+              enriched.location ||
+              extracted.location,
+            skills: mergedSkills,
+            linkedinUrl:
+              possibleDuplicate.linkedinUrl ||
+              enriched.linkedinUrl ||
+              extracted.linkedinUrl,
+            githubUrl:
+              possibleDuplicate.githubUrl ||
+              enriched.githubUrl ||
+              extracted.githubUrl,
+            websiteUrl:
+              possibleDuplicate.websiteUrl ||
+              enriched.websiteUrl ||
+              extracted.websiteUrl ||
+              url,
+            bio:
+              possibleDuplicate.bio ||
+              enriched.bio ||
+              extracted.bio,
+            confidenceScore:
+              enriched.confidenceScore ??
+              possibleDuplicate.confidenceScore ??
+              0.85,
+            sources: mergedSources,
+            // keep old enrichedData but merge in new details
+            enrichedData: {
+              ...(possibleDuplicate.enrichedData as any),
+              ...enriched,
+            },
+            // we could also store latest extractedData if you want
+            extractedData: extracted,
+          }
+        );
+
+        return res.json(updated);
+      }
+
+      // 5) no duplicate → create a brand new contact
+      const contact = await storage.createContact({
+        userId,
+        name: enriched.name || extracted.name || "Unknown",
+        email: enriched.email || extracted.email,
+        phone: enriched.phone || extracted.phone,
+        company: enriched.company || extracted.company,
+        title: enriched.title || extracted.title,
+        location: enriched.location || extracted.location,
+        skills: enriched.skills || extracted.skills || [],
+        linkedinUrl: enriched.linkedinUrl || extracted.linkedinUrl,
+        githubUrl: enriched.githubUrl || extracted.githubUrl,
+        websiteUrl: enriched.websiteUrl || extracted.websiteUrl || url,
+        bio: enriched.bio || extracted.bio,
+        confidenceScore: enriched.confidenceScore ?? 0.85,
+        sources: baseSources,
+        extractedData: extracted,
+        enrichedData: enriched,
+      });
+
+      res.json(contact);
+    } catch (err: any) {
+      console.error("Error creating contact from URL:", err);
+      const message =
+        err?.message || "Failed to create contact from URL";
+      res.status(500).json({ message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
@@ -474,7 +738,10 @@ async function processDocumentExtraction(documentId: string, userId: string, fil
     console.log('Starting multi-source enrichment...');
     const enrichedData = await enrichContact(
       extractedData,
-      githubKey?.encryptedValue
+      githubKey?.encryptedValue,
+      {
+        conservative: mimeType.startsWith("image/"),
+      }
     );
 
     // Update progress

@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import { GoogleGenAI } from "@google/genai";
+import fetch from "node-fetch";
 
 export interface ExtractedContactData {
   name?: string;
@@ -81,6 +82,110 @@ Be as accurate as possible. Extract all available information.`;
   } catch (error: any) {
     console.error("Error extracting contact data:", error);
     throw new Error(`Failed to extract contact data: ${error.message || error}`);
+  }
+}
+
+async function fetchHtmlWithTimeout(url: string, ms = 8000): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ms);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal as any });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch URL: ${res.status} ${res.statusText}`);
+    }
+
+    return await res.text();
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      throw new Error("Timed out while connecting to the website");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+
+export async function extractContactFromWebsite(
+  url: string,
+  apiKey: string
+): Promise<ExtractedContactData> {
+  const ai = new GoogleGenAI({ apiKey });
+
+  try {
+    // fetch page HTML (Node 20 has global fetch)
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch URL: ${res.status} ${res.statusText}`);
+    }
+
+    let html = await res.text();
+    // avoid sending insane amounts of text
+    if (html.length > 15000) {
+      html = html.slice(0, 15000);
+    }
+
+    const systemPrompt = `
+You are an expert at extracting structured contact information from web pages.
+
+The user will give you the HTML content of a profile or personal website.
+Extract the following fields when available:
+
+- name: Full name of the person
+- email: Email address
+- phone: Phone number
+- company: Current company/organization
+- title: Job title/position
+- location: City, state, or country
+- skills: Array of technical or professional skills
+- linkedinUrl: LinkedIn profile URL (if present)
+- githubUrl: GitHub profile URL (if present)
+- websiteUrl: Main personal website URL (likely the page URL itself)
+- bio: Brief professional summary
+- education: Array of educational qualifications (strings)
+- experience: Array of work experience with company, title, and duration
+
+Return ONLY valid JSON with the extracted data.
+If a field is not found, omit it from the response.`.trim();
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        responseMimeType: "application/json",
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: systemPrompt },
+            {
+              text: `Page URL: ${url}\n\nHTML CONTENT:\n${html}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      throw new Error("Empty response from Gemini (website extraction)");
+    }
+
+    const extracted: ExtractedContactData = JSON.parse(rawJson);
+
+    // ensure websiteUrl at least falls back to the URL we scraped
+    if (!extracted.websiteUrl) {
+      extracted.websiteUrl = url;
+    }
+
+    return extracted;
+  } catch (error: any) {
+    console.error("Error extracting contact data from website:", error);
+    throw new Error(
+      `Failed to extract contact data from website: ${error.message || error}`
+    );
   }
 }
 

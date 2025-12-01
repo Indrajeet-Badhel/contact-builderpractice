@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -47,10 +48,20 @@ import {
 import type { Contact } from "@shared/schema";
 import { motion } from "framer-motion";
 
+const getSourceUrl = (contact: Contact, type: string): string | undefined => {
+  const sources = (contact.sources as any) || [];
+  const match = sources.find(
+    (s: any) => s.source === type && s.url && s.url !== "uploaded_document",
+  );
+  return match?.url;
+};
+
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [newContactUrl, setNewContactUrl] = useState("");   
+  const queryClient = useQueryClient();                     
   const { toast } = useToast();
 
   const { data: contacts = [], isLoading } = useQuery<Contact[]>({
@@ -89,6 +100,51 @@ export default function Dashboard() {
       title: "Contact Exported",
       description: `${contact.name}'s contact information has been downloaded as JSON.`,
     });
+  };
+
+    const handleImportFromUrl = async () => {
+    if (!newContactUrl.trim()) {
+      toast({
+        title: "URL required",
+        description: "Please paste a profile or portfolio URL first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/contacts/from-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ url: newContactUrl.trim() }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to create contact from URL");
+      }
+
+      const contact = await res.json();
+
+      toast({
+        title: "Contact imported",
+        description: `Imported / updated contact: ${contact.name || "Unknown"}`,
+      });
+
+      setNewContactUrl("");
+      // refetch contacts to show the new / updated one
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: "Import failed",
+        description: error.message || "Could not import contact from this URL.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSyncToCRM = (contact: Contact) => {
@@ -236,6 +292,22 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* URL Import Bar */}
+        <Card className="p-4 mb-4 border-2">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <Input
+              placeholder="Paste LinkedIn / GitHub / portfolio URL to create or update a contact..."
+              value={newContactUrl}
+              onChange={(e) => setNewContactUrl(e.target.value)}
+              className="border-0 focus-visible:ring-0 text-base bg-transparent"
+            />
+            <Button onClick={handleImportFromUrl}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              Import from URL
+            </Button>
+          </div>
+        </Card>
+        
         {/* Search Bar */}
         <Card className="p-4 mb-6 border-2">
           <div className="flex items-center gap-3">
@@ -536,46 +608,154 @@ export default function Dashboard() {
                 )}
 
                 {/* Social Links Section */}
-                {(selectedContact.linkedinUrl || selectedContact.githubUrl || selectedContact.websiteUrl) && (
+                {selectedContact && (
                   <div>
                     <h3 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
                       <Globe className="w-4 h-4" />
                       SOCIAL PROFILES
                     </h3>
                     <div className="space-y-2">
-                      {selectedContact.linkedinUrl && (
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => window.open(selectedContact.linkedinUrl!, '_blank')}
-                        >
-                          <Linkedin className="w-4 h-4 mr-2" />
-                          LinkedIn Profile
+                      {/* LinkedIn */}
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() =>
+                          selectedContact.linkedinUrl &&
+                          window.open(selectedContact.linkedinUrl, "_blank")
+                        }
+                        disabled={!selectedContact.linkedinUrl}
+                      >
+                        <Linkedin className="w-4 h-4 mr-2" />
+                        LinkedIn Profile
+                        {selectedContact.linkedinUrl ? (
                           <ExternalLink className="w-3 h-3 ml-auto" />
-                        </Button>
-                      )}
-                      {selectedContact.githubUrl && (
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => window.open(selectedContact.githubUrl!, '_blank')}
-                        >
-                          <Github className="w-4 h-4 mr-2" />
-                          GitHub Profile
+                        ) : (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            Unavailable
+                          </span>
+                        )}
+                      </Button>
+
+                      {/* GitHub */}
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() =>
+                          selectedContact.githubUrl &&
+                          window.open(selectedContact.githubUrl, "_blank")
+                        }
+                        disabled={!selectedContact.githubUrl}
+                      >
+                        <Github className="w-4 h-4 mr-2" />
+                        GitHub Profile
+                        {selectedContact.githubUrl ? (
                           <ExternalLink className="w-3 h-3 ml-auto" />
-                        </Button>
-                      )}
-                      {selectedContact.websiteUrl && (
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => window.open(selectedContact.websiteUrl!, '_blank')}
-                        >
-                          <Globe className="w-4 h-4 mr-2" />
-                          Personal Website
+                        ) : (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            Unavailable
+                          </span>
+                        )}
+                      </Button>
+
+                      {/* Personal Website */}
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() =>
+                          selectedContact.websiteUrl &&
+                          window.open(selectedContact.websiteUrl, "_blank")
+                        }
+                        disabled={!selectedContact.websiteUrl}
+                      >
+                        <Globe className="w-4 h-4 mr-2" />
+                        Personal Website
+                        {selectedContact.websiteUrl ? (
                           <ExternalLink className="w-3 h-3 ml-auto" />
-                        </Button>
-                      )}
+                        ) : (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            Unavailable
+                          </span>
+                        )}
+                      </Button>
+
+                      {/* Stack Overflow */}
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const url = getSourceUrl(selectedContact, "stackoverflow");
+                          if (url) window.open(url, "_blank");
+                        }}
+                        disabled={!getSourceUrl(selectedContact, "stackoverflow")}
+                      >
+                        <Code className="w-4 h-4 mr-2" />
+                        Stack Overflow Profile
+                        {getSourceUrl(selectedContact, "stackoverflow") ? (
+                          <ExternalLink className="w-3 h-3 ml-auto" />
+                        ) : (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            Unavailable
+                          </span>
+                        )}
+                      </Button>
+
+                      {/* GitLab */}
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const url = getSourceUrl(selectedContact, "gitlab");
+                          if (url) window.open(url, "_blank");
+                        }}
+                        disabled={!getSourceUrl(selectedContact, "gitlab")}
+                      >
+                        <Code className="w-4 h-4 mr-2" />
+                        GitLab Profile
+                        {getSourceUrl(selectedContact, "gitlab") ? (
+                          <ExternalLink className="w-3 h-3 ml-auto" />
+                        ) : (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            Unavailable
+                          </span>
+                        )}
+                      </Button>
+
+                      {/* ORCID */}
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const orcidUrl =
+                            selectedContact.orcidUrl ||
+                            getSourceUrl(selectedContact, "orcid") ||
+                            ((selectedContact.enrichedData as any)?.orcidId
+                              ? `https://orcid.org/${
+                                  (selectedContact.enrichedData as any).orcidId
+                                }`
+                              : undefined);
+
+                          if (orcidUrl) window.open(orcidUrl, "_blank");
+                        }}
+                        disabled={
+                          !(
+                            selectedContact.orcidUrl ||
+                            getSourceUrl(selectedContact, "orcid") ||
+                            (selectedContact.enrichedData as any)?.orcidId
+                          )
+                        }
+                      >
+                        <BookOpen className="w-4 h-4 mr-2" />
+                        ORCID Profile
+                        {selectedContact.orcidUrl ||
+                        getSourceUrl(selectedContact, "orcid") ||
+                        (selectedContact.enrichedData as any)?.orcidId ? (
+                          <ExternalLink className="w-3 h-3 ml-auto" />
+                        ) : (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            Unavailable
+                          </span>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 )}
