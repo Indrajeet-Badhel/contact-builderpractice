@@ -1,233 +1,307 @@
-AI Contact Builder - Design Guidelines
-Design Approach
-Hybrid Strategy: Combining modern SaaS aesthetics (Linear, Notion) with data-rich dashboard patterns (HubSpot CRM, Airtable) while maintaining a distinctive monochromatic identity and gamified elements.
+# Contact Builder - AI-Powered Contact Intelligence
 
-Core Philosophy: Professional minimalism meets engaging gamification - create a sophisticated tool that feels rewarding to use.
+> Transform resumes, documents, and business cards into comprehensive, verified contact profiles using AI and OSINT enrichment.
 
-Visual Identity
-Monochromatic Foundation
-Pure Black & White: Use pure black (#000000) and pure white (#FFFFFF) as primary colors
-Grayscale Spectrum: Employ 6 shades of gray for depth and hierarchy:
-Gray-50 (near white) for subtle backgrounds
-Gray-100 for card backgrounds
-Gray-200 for borders and dividers
-Gray-600 for secondary text
-Gray-800 for primary text
-Gray-900 (near black) for emphasis
-Accent System
-Single Accent: Introduce one vibrant accent color (suggest electric blue #0066FF or neon green #00FF88) exclusively for:
-Primary CTAs
-Progress indicators
-Success states
-Interactive highlights
-Usage Rule: Accent appears sparingly (5-10% of interface) to create maximum impact
-Typography System
-Font Families
-Primary: Inter or DM Sans (clean, modern sans-serif via Google Fonts)
-Display: Space Grotesk or Archivo Black for hero headlines (bold, geometric)
-Mono: JetBrains Mono for API keys, code snippets, confidence scores
-Type Scale
-Hero Display: 72px (desktop) / 48px (mobile) - ultra-bold, tight letter-spacing (-2%)
-H1: 48px / 36px - bold
-H2: 36px / 28px - semibold
-H3: 24px / 20px - semibold
-Body Large: 18px - regular
-Body: 16px - regular
-Small: 14px - medium
-Tiny: 12px - medium (labels, metadata)
-Hierarchy Principles
-Use weight variations (400, 500, 600, 700, 900) over size changes
-Maintain consistent line-height: 1.5 for body, 1.2 for headings
-Generous letter-spacing for all-caps labels (+5%)
-Layout System
-Spacing Units
-Use Tailwind spacing primitives: 4, 8, 12, 16, 24, 32, 48, 64
+![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)
 
-Micro spacing (between related elements): 4-8
-Component padding: 16-24
-Section padding: 32-48 (mobile), 48-64 (desktop)
-Page margins: 64+ (desktop)
-Grid Structure
-Container: max-w-7xl (1280px) for main content
-Cards: max-w-6xl (1152px) for dashboard
-Forms: max-w-2xl (672px) for optimal readability
-Multi-column: 2 columns on tablet, 3-4 on desktop where appropriate (contact cards, feature grids)
-Component Library
-Navigation
-Top Bar (fixed, backdrop-blur):
+## Overview
 
-Height: 64px
-Logo left, navigation center, user profile/API status right
-Border-bottom: 1px gray-200
-Sticky with subtle shadow on scroll
-Sidebar (dashboard pages):
+Contact Builder is an AI-driven system that automatically constructs comprehensive, verified contact profiles from minimal input. Upload a resume, PDF, business card image, or any professional document, and get back structured, CRM-ready contact data enriched from multiple public sources.
 
-Width: 280px (desktop), collapsible to 64px icon-only
-Background: gray-50 with 1px gray-200 border
-Icons: Heroicons via CDN
-Active state: accent-colored background with rounded corners
-Cards & Containers
-Contact Cards:
+**Key Features:**
+- **Smart Document Processing** - AI-powered extraction from PDFs, DOCX, images, and text files
+- **Multi-Source Enrichment** - Automatically enriches contacts using GitHub, ORCID, Stack Overflow, Wikipedia, and more
+- **Semantic Search** - Natural language queries like "Find Python developers with ML experience"
+- **Confidence Scoring** - AI-powered scoring system to validate data accuracy
+- **Intelligent Deduplication** - Prevents duplicate contacts using similarity algorithms
+- **CRM-Ready Exports** - Export to Excel, CSV, JSON, or vCard formats
+- **Privacy-First** - GDPR-compliant, only accesses public data sources
 
-Rounded corners: 12px
-Border: 2px gray-200, hover transforms to accent color
-Padding: 24px
-Subtle shadow on hover: 0 8px 24px rgba(0,0,0,0.08)
-Include confidence badge (top-right corner, pill-shaped)
-Dashboard Sections:
+## Quick Start
 
-Background: white
-Separator lines: 1px gray-200
-Inner padding: 32px
-Forms & Inputs
-Text Inputs:
+### Prerequisites
 
-Height: 48px
-Border: 2px gray-200, focus border accent color
-Rounded: 8px
-Padding: 12px 16px
-Placeholder: gray-400
-Buttons:
+- Node.js 20+ 
+- PostgreSQL database (or Neon serverless)
+- Gemini API key (required for document extraction)
 
-Primary: Black background, white text, accent-colored on hover (invert effect)
-Secondary: White background, black border, hover state with gray-100 fill
-Ghost: Transparent, hover gray-100 background
-Height: 48px (large), 40px (medium), 32px (small)
-Padding: 12-24px horizontal
-Border-radius: 8px
-Font-weight: 600
-Data Visualization
-Progress Bars (gamification core):
+### Installation
 
-Height: 8px
-Background: gray-200
-Fill: accent color with animated shimmer effect
-Corner radius: 4px
-Include percentage label above
-Confidence Scores:
+1. **Clone the repository**
+```bash
+git clone <your-repo-url>
+cd contact-builder
+```
 
-Display as: percentage (87%) + visual bar + color-coded badge
-90-100%: Green indicator (exception to B&W rule for clarity)
-70-89%: Yellow indicator
-Below 70%: Red indicator
-Stats Cards:
+2. **Install dependencies**
+```bash
+npm install
+```
 
-Large number display (48px, bold)
-Small label below (14px, gray-600)
-Icon (32px) in corner
-Hover effect: slight scale (1.02) and shadow
-Page-Specific Layouts
-Landing Page
-Hero Section (full viewport):
+3. **Set up environment variables**
 
-Large headline (72px) with animated gradient text effect (black to gray shimmer)
-Subheadline (24px, gray-600)
-Two CTAs: "Get Started" (accent, large) + "Watch Demo" (ghost, medium)
-Background: Abstract geometric pattern in gray-100 (subtle)
-Hero image: Right-aligned mockup of dashboard interface (floating card with subtle shadow)
-Features Grid (4 sections):
+Create a `.env` file in the root directory:
 
-2x2 grid (desktop), stack on mobile
-Each feature: large icon (64px), heading, description, micro-animation on hover
-Alternating layout: icon-left, icon-right pattern
-Social Proof:
+```env
+# Required
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+SESSION_SECRET=your-secure-random-string-here
 
-Centered testimonial carousel
-Company logos in grayscale filter
-Stats counter with animated numbers on scroll
-CTA Footer Section:
+# Optional (configure via UI after login)
+# GEMINI_API_KEY=your-gemini-api-key
+# GITHUB_TOKEN=your-github-token
+# HUGGINGFACE_API_KEY=your-hf-api-key
+```
 
-Full-width, black background
-White text, accent CTA button
-Background pattern: subtle dot grid
-Document Upload Page
-Drop Zone (central focus):
+4. **Initialize database**
+```bash
+npm run db:push
+```
 
-Large dashed border (4px, gray-300)
-400px height minimum
-Centered upload icon (96px)
-"Drag & Drop or Click to Upload"
-Supported formats list below
-Animated border on drag-over (accent color pulse)
-Upload Progress:
+5. **Start development server**
+```bash
+npm run dev
+```
 
-Side panel showing:
-File name + size
-Linear progress bar
-Processing stages (OCR → Extraction → Analysis)
-Real-time status updates with check marks
-User Profile & Settings
-Two-Column Layout:
+6. **Open your browser**
+```
+http://localhost:5000
+```
 
-Left: Profile card (avatar, name, email, member since, stats)
-Right: Tabbed sections (Personal Info, API Keys, Preferences, Billing)
-API Key Management:
+## Usage Guide
 
-Each service as collapsible card
-Show/hide toggle for keys (masked: ••••••••key123)
-Connection status indicator (green dot: connected, red: error)
-"Test Connection" button per service
-Last verified timestamp
-Contact Dashboard
-Search Bar (prominent):
+### 1. Login
+- Navigate to `/login`
+- Enter any email and password (min 6 characters)
+- Simple session-based auth for development
 
-Full-width, sticky below header
-AI-powered semantic search with microphone icon
-Example prompts below: "Find Python developers..." as pills
-Filters Sidebar (left):
+### 2. Configure API Keys
+- Go to Profile → API Keys tab
+- Add your Gemini API key (required for extraction)
+- Optionally add GitHub, HuggingFace, and other service keys for enhanced enrichment
 
-Collapsible filter categories
-Checkboxes with counts
-Clear all button
-Contact Grid (main area):
+### 3. Upload Documents
+- Navigate to Upload page
+- Drag & drop or click to upload:
+  - Resumes (PDF, DOCX)
+  - Business cards (PNG, JPG)
+  - Plain text files
+- Watch real-time extraction progress
 
-Masonry layout for varied card heights
-Infinite scroll with loading skeleton
-Empty state with illustration and CTA
-Contact Detail View (modal):
+### 4. View & Search Contacts
+- Browse extracted contacts on Dashboard
+- Use semantic search: *"Show me contacts from San Francisco"*
+- View detailed profiles with enriched data from multiple sources
+- Export to Excel, CSV, or individual JSON files
 
-Large header with avatar, name, title
-Tabs: Overview, Timeline, Skills, Sources, Export
-Floating action button: "Sync to HubSpot"
-Gamification Elements
-Achievement System
-Progress rings for profile completion (inspired by Apple Watch)
-Badges for milestones: "First 10 Contacts", "API Master", etc.
-Toast notifications for achievements (slide-in, top-right)
-Interactive Feedback
-Micro-animations on all interactions (scale, fade, slide)
-Loading states with skeleton screens (shimmer effect)
-Success celebrations: confetti burst on major actions (contact sync complete)
-Engagement Metrics
-Dashboard widget showing weekly activity graph
-Streak counter for daily usage
-Leaderboard if multi-user (optional)
-Animations & Interactions
-Principle: Subtle and purposeful, never distracting
+## Architecture
 
-Page Transitions: Fade-in with slight upward motion (200ms)
-Card Hovers: Lift effect (translateY -4px) + shadow increase (300ms ease-out)
-Button Press: Scale 0.98 on click
-Loading: Skeleton shimmer (1.5s infinite loop)
-Modal Entry: Backdrop fade + content scale from 0.95 to 1 (250ms)
-Success States: Green checkmark with scale pulse
-Images & Media
-Landing Page Images
-Hero Image: Dashboard mockup showing contact grid (right-aligned, 600px width)
-Feature Icons: Custom illustrated icons in black outline style
-Background Elements: Abstract geometric shapes, dot patterns, gradient meshes (all in grayscale)
-Dashboard
-Contact Avatars: Circular (48px default, 64px in detail view)
-Empty States: Custom illustrations (minimalist line art)
-Icons: Heroicons exclusively (24px default, consistent stroke-width)
-Accessibility & Polish
-Maintain WCAG AAA contrast ratios (21:1 for black/white)
-Focus states: 3px accent-colored outline with 2px offset
-Keyboard navigation: clear focus indicators on all interactive elements
-Screen reader: Proper ARIA labels for all icons and interactive components
-Consistent form validation: Inline error messages in red (exception to B&W rule)
-Responsive Behavior
-Mobile: Single column, collapsible navigation drawer, touch-optimized tap targets (48px minimum)
-Tablet: 2-column grids, persistent sidebar
-Desktop: Full multi-column layouts, hover states enabled
-Breakpoints: 640px (sm), 768px (md
+### Tech Stack
+
+**Frontend:**
+- React 18 + TypeScript
+- TanStack Query for server state
+- Wouter for routing
+- shadcn/ui + Radix UI components
+- Tailwind CSS
+
+**Backend:**
+- Node.js + Express
+- PostgreSQL with Drizzle ORM
+- Session-based authentication
+- Multer for file uploads
+
+**AI Services:**
+- Google Gemini AI - Document extraction & semantic search
+- HuggingFace - Deduplication & similarity scoring
+- GitHub API - Repository & profile enrichment
+- ORCID API - Academic profile data
+- Stack Exchange, Wikipedia, GitLab, Dev.to APIs for additional enrichment
+
+### Project Structure
+
+```
+contact-builder/
+├── client/               # React frontend
+│   ├── src/
+│   │   ├── components/  # Reusable UI components
+│   │   ├── pages/       # Page components
+│   │   ├── hooks/       # Custom React hooks
+│   │   └── lib/         # Utilities & API client
+│   └── index.html
+├── server/              # Express backend
+│   ├── routes.ts        # API route handlers
+│   ├── gemini.ts        # Gemini AI integration
+│   ├── enrichment.ts    # Multi-source enrichment
+│   ├── huggingface.ts   # Deduplication logic
+│   ├── storage.ts       # Database operations
+│   └── simpleAuth.ts    # Authentication
+├── shared/              # Shared TypeScript schemas
+│   └── schema.ts        # Drizzle ORM schemas
+└── migrations/          # Database migrations
+```
+
+## Configuration
+
+### Supported Data Sources
+
+#### Core Services (Recommended)
+- **Gemini AI** - Required for document extraction
+- **HuggingFace** - Optional, improves deduplication accuracy
+- **GitHub** - Optional, enriches developer profiles
+
+#### Developer Platforms (Free APIs)
+- GitHub, GitLab, Stack Overflow, Dev.to, Kaggle, Hashnode, Product Hunt
+
+#### Academic & Research (Free APIs)
+- ORCID, Semantic Scholar, OpenAlex, CrossRef, Google Scholar (via SerpAPI)
+
+#### Knowledge Bases (Free APIs)
+- Wikipedia, Wikidata, DBpedia, GDELT
+
+#### Professional Data
+- OpenCorporates (company registry)
+- Gravatar (profile images)
+
+All API keys can be configured securely via the Profile page after login.
+
+## Features Deep Dive
+
+### AI-Powered Document Extraction
+
+Upload any professional document and Gemini AI extracts:
+- Name, email, phone, location
+- Company, job title
+- Skills, education, experience
+- Social profiles (LinkedIn, GitHub, website)
+- Professional bio/summary
+
+### Multi-Source Enrichment
+
+Automatically enriches contacts by searching:
+1. **GitHub** - Repositories, contributions, bio, programming languages
+2. **ORCID** - Academic publications, affiliations, research interests
+3. **Stack Overflow** - Reputation, badges, expertise areas
+4. **Wikipedia/Wikidata** - Notable achievements, biographical data
+5. **Other platforms** - GitLab projects, Dev.to articles, etc.
+
+### Confidence Scoring
+
+Each contact receives an AI-calculated confidence score based on:
+- Number of verified sources
+- Field completeness (email, phone, company, etc.)
+- Presence of verifiable links (GitHub, LinkedIn, ORCID)
+- Cross-source data consistency
+
+### Intelligent Deduplication
+
+Uses HuggingFace sentence transformers to:
+- Detect duplicate contacts (>85% similarity)
+- Merge data from multiple sources
+- Prevent redundant entries
+
+### Semantic Search
+
+Natural language queries powered by Gemini:
+- *"Find Python developers with ML experience"*
+- *"Show me contacts from San Francisco"*
+- *"Engineers working on AI projects"*
+
+## Privacy & Compliance
+
+- **GDPR Compliant** - Only accesses public data sources
+- **No Scraping** - Uses official APIs and respects robots.txt
+- **User Consent** - Clear data source attribution
+- **Secure Storage** - API keys encrypted at rest
+- **No Special Categories** - Avoids health, religion, political data
+
+## Development
+
+### Build for Production
+
+```bash
+npm run dev
+npm run build
+npm run start
+```
+
+### Database Management
+
+```bash
+# Push schema changes
+npm run db:push
+
+# Generate migrations
+npx drizzle-kit generate
+
+# Apply migrations
+npx drizzle-kit migrate
+```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `SESSION_SECRET` | No | Session encryption key (has default) |
+| `PORT` | No | Server port (default: 5000) |
+
+API keys are managed via the UI and stored securely in the database.
+
+## API Endpoints
+
+### Authentication
+- `POST /api/login` - Email/password login
+- `GET /api/logout` - End session
+- `GET /api/auth/user` - Current user info
+
+### Contacts
+- `GET /api/contacts` - List all contacts
+- `GET /api/contacts/:id` - Get single contact
+- `POST /api/contacts` - Create contact
+- `PATCH /api/contacts/:id` - Update contact
+- `DELETE /api/contacts/:id` - Delete contact
+- `POST /api/contacts/search` - Semantic search
+
+### Documents
+- `POST /api/documents/upload` - Upload & extract
+- `GET /api/documents` - List uploads
+- `DELETE /api/documents/:id` - Delete document
+
+### Export
+- `POST /api/contacts/export/excel` - Export to Excel
+- `POST /api/contacts/export/csv` - Export to CSV
+- `POST /api/contacts/export/vcard` - Export to vCard
+
+### API Keys
+- `GET /api/api-keys` - List configured keys
+- `POST /api/api-keys` - Add/update key
+- `DELETE /api/api-keys/:id` - Remove key
+- `POST /api/api-keys/:id/test` - Test connection
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## Acknowledgments
+
+- **Google Gemini** - AI-powered document extraction
+- **HuggingFace** - Similarity models for deduplication
+- **shadcn/ui** - Beautiful component library
+- **Drizzle ORM** - Type-safe database access
+- All the open data platforms that make enrichment possible
+
+## Support
+
+- Issues: [GitHub Issues](https://github.com/Indrajeet-Badhel/contact-builderpractice/issues)
+
+---
+
+Built with ❤️
