@@ -48,7 +48,7 @@ Return ONLY valid JSON with the extracted data. If a field is not found, omit it
 Be as accurate as possible. Extract all available information.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-flash",
       config: {
         responseMimeType: "application/json",
       },
