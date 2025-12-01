@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, LogIn, ArrowLeft } from "lucide-react";
+import { Mail, Lock, LogIn, ArrowLeft, Users } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 export default function LoginPage() {
@@ -54,18 +54,22 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-foreground text-background flex items-center justify-center rounded-md font-black text-xl mx-auto mb-4">
-            CB
-          </div>
-          <h1 className="text-2xl font-black font-['Space_Grotesk']">Welcome Back</h1>
-          <p className="text-muted-foreground mt-2">Sign in to your account</p>
-        </div>
+return (
+  <Card className="w-full max-w-md mx-auto">
+    <div className="text-center mb-8">
+      {/* Professional gradient logo */}
+      <div className="relative w-14 h-14 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/20 mx-auto mb-4">
+        <Users className="w-7 h-7 text-white" strokeWidth={2.5} />
+        <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full border-2 border-background shadow-sm"></div>
+      </div>
+      
+      <h1 className="text-2xl font-black font-['Space_Grotesk'] bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+        Welcome Back
+      </h1>
+      <p className="text-muted-foreground mt-2">Sign in to your account</p>
+    </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <div className="relative">
@@ -128,7 +132,6 @@ export default function LoginPage() {
             Back to Home
           </Button>
         </div>
-      </Card>
-    </div>
+    </Card>
   );
 }

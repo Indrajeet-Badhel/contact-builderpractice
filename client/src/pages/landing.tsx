@@ -43,32 +43,36 @@ export default function Landing() {
     <div className="min-h-screen bg-background">
       {/* Top Navigation Bar for authenticated users */}
       {isAuthenticated && (
-        <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-2 font-black text-xl font-['Space_Grotesk']">
-              <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center rounded-md font-black">
-                CB
-              </div>
-              Contact Builder
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground hidden sm:inline">
-                Welcome, {user?.firstName || user?.email || 'User'}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => window.location.href = '/api/logout'}
-                className="gap-2"
-                data-testid="button-logout"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Sign Out</span>
-              </Button>
-            </div>
-          </div>
-        </nav>
-      )}
+  <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="container max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="flex items-center gap-3 font-black text-xl font-['Space_Grotesk']">
+        {/* Professional gradient logo */}
+        <div className="relative w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/20">
+          <Users className="w-5 h-5 text-white" strokeWidth={2.5} />
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full border-2 border-background shadow-sm"></div>
+        </div>
+        <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+          Contact Builder
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground hidden sm:inline">
+          Welcome, {user?.firstName || user?.email || 'User'}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => window.location.href = '/api/logout'}
+          className="gap-2"
+          data-testid="button-logout"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">Sign Out</span>
+        </Button>
+      </div>
+    </div>
+  </nav>
+)}
 
       {/* Hero Section */}
       <section className="relative overflow-hidden border-b">
