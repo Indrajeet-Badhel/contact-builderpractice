@@ -25,25 +25,186 @@ function normalizeUrl(value?: string | null): string {
   }
 }
 
+/**
+ * Normalize a name for comparison (lowercase, remove extra spaces, punctuation)
+ */
+function normalizeName(name?: string | null): string {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "") // remove punctuation
+    .replace(/\s+/g, " ") // normalize spaces
+    .trim();
+}
+
+/**
+ * Calculate similarity between two strings (0-1 score)
+ * Simple Levenshtein-based similarity
+ */
+function stringSimilarity(str1: string, str2: string): number {
+  if (!str1 || !str2) return 0;
+  if (str1 === str2) return 1;
+  
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 1;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix: number[][] = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+}
+
+/**
+ * Enhanced duplicate detection with multiple strategies
+ */
+function findDuplicateContact(
+  newContact: any,
+  existingContacts: any[]
+): any | null {
+  
+  // Strategy 1: Exact URL matches (highest priority)
+  for (const existing of existingContacts) {
+    // Check GitHub URL
+    if (newContact.githubUrl && existing.githubUrl) {
+      const newGh = normalizeUrl(newContact.githubUrl);
+      const existingGh = normalizeUrl(existing.githubUrl);
+      if (newGh && existingGh && newGh === existingGh) {
+        console.log(`Duplicate found via GitHub URL: ${existing.id}`);
+        return existing;
+      }
+    }
+    
+    // Check LinkedIn URL
+    if (newContact.linkedinUrl && existing.linkedinUrl) {
+      const newLi = normalizeUrl(newContact.linkedinUrl);
+      const existingLi = normalizeUrl(existing.linkedinUrl);
+      if (newLi && existingLi && newLi === existingLi) {
+        console.log(`Duplicate found via LinkedIn URL: ${existing.id}`);
+        return existing;
+      }
+    }
+    
+    // Check ORCID URL
+    if (newContact.orcidUrl && existing.orcidUrl) {
+      const newOrcid = normalizeUrl(newContact.orcidUrl);
+      const existingOrcid = normalizeUrl(existing.orcidUrl);
+      if (newOrcid && existingOrcid && newOrcid === existingOrcid) {
+        console.log(`Duplicate found via ORCID URL: ${existing.id}`);
+        return existing;
+      }
+    }
+    
+    // Check Email (exact match)
+    if (newContact.email && existing.email) {
+      const newEmail = normalizeString(newContact.email);
+      const existingEmail = normalizeString(existing.email);
+      if (newEmail && existingEmail && newEmail === existingEmail) {
+        console.log(`Duplicate found via Email: ${existing.id}`);
+        return existing;
+      }
+    }
+  }
+  
+  // Strategy 2: Name similarity + partial URL match
+  const newName = normalizeName(newContact.name);
+  if (!newName) return null;
+  
+  for (const existing of existingContacts) {
+    const existingName = normalizeName(existing.name);
+    if (!existingName) continue;
+    
+    // Check if names are very similar (>0.85 similarity)
+    const nameSim = stringSimilarity(newName, existingName);
+    
+    if (nameSim > 0.85) {
+      // If names are similar, check if there's any URL overlap
+      const hasUrlOverlap = (
+        (newContact.githubUrl && existing.githubUrl) ||
+        (newContact.linkedinUrl && existing.linkedinUrl) ||
+        (newContact.websiteUrl && existing.websiteUrl)
+      );
+      
+      // If names match closely and we have URL overlap, it's likely the same person
+      if (hasUrlOverlap) {
+        console.log(`Duplicate found via name similarity (${nameSim.toFixed(2)}) + URL overlap: ${existing.id}`);
+        return existing;
+      }
+      
+      // If names match very closely (>0.95) and same company, likely duplicate
+      if (nameSim > 0.95 && newContact.company && existing.company) {
+        const companySim = stringSimilarity(
+          normalizeString(newContact.company),
+          normalizeString(existing.company)
+        );
+        if (companySim > 0.8) {
+          console.log(`Duplicate found via name (${nameSim.toFixed(2)}) + company (${companySim.toFixed(2)}): ${existing.id}`);
+          return existing;
+        }
+      }
+    }
+  }
+  
+  // Strategy 3: Same email domain + similar name (for corporate emails)
+  if (newContact.email) {
+    const newEmailDomain = newContact.email.split('@')[1]?.toLowerCase();
+    
+    for (const existing of existingContacts) {
+      if (!existing.email) continue;
+      
+      const existingEmailDomain = existing.email.split('@')[1]?.toLowerCase();
+      
+      if (newEmailDomain && existingEmailDomain && newEmailDomain === existingEmailDomain) {
+        const nameSim = stringSimilarity(
+          normalizeName(newContact.name),
+          normalizeName(existing.name)
+        );
+        
+        if (nameSim > 0.8) {
+          console.log(`Duplicate found via email domain + name similarity: ${existing.id}`);
+          return existing;
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
 function areLikelySamePerson(a: any, b: any): boolean {
-  const nameA = normalizeString(a.name);
-  const nameB = normalizeString(b.name);
-
-  if (!nameA || !nameB) return false;
-  if (nameA !== nameB) return false;
-
-  // If both have email and they're different → not the same
-  const emailA = normalizeString(a.email);
-  const emailB = normalizeString(b.email);
-  if (emailA && emailB && emailA !== emailB) return false;
-
-  // If both have GitHub URL and they're different → not the same
-  const ghA = normalizeUrl(a.githubUrl);
-  const ghB = normalizeUrl(b.githubUrl);
-  if (ghA && ghB && ghA !== ghB) return false;
-
-  // Otherwise, same name + no strong contradiction → treat as same person
-  return true;
+  // Use the new enhanced detection
+  const result = findDuplicateContact(a, [b]);
+  return result !== null;
 }
 
 function mergeSources(
