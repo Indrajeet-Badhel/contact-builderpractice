@@ -9,6 +9,9 @@ import { enrichContact } from "./enrichment";
 import { deduplicateContactData, improveConfidenceScore } from "./huggingface";
 import { randomUUID } from "crypto";
 import * as XLSX from "xlsx";
+import {pool, db} from "./db";
+import { contacts, users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 function normalizeString(value?: string | null): string {
   return (value || "").toLowerCase().trim();
@@ -861,6 +864,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const message =
         err?.message || "Failed to create contact from URL";
       res.status(500).json({ message });
+    }
+  });
+
+  // Admin route to view all contacts from all users
+  app.get('/api/admin/contacts', isAuthenticated, async (req: any, res) => {
+    try {
+      // Get all contacts across all users
+      const allContacts = await db.select({
+        id: contacts.id,
+        userId: contacts.userId,
+        name: contacts.name,
+        email: contacts.email,
+        phone: contacts.phone,
+        company: contacts.company,
+        title: contacts.title,
+        location: contacts.location,
+        skills: contacts.skills,
+        linkedinUrl: contacts.linkedinUrl,
+        githubUrl: contacts.githubUrl,
+        orcidUrl: contacts.orcidUrl,
+        websiteUrl: contacts.websiteUrl,
+        bio: contacts.bio,
+        confidenceScore: contacts.confidenceScore,
+        sources: contacts.sources,
+        tags: contacts.tags,
+        notes: contacts.notes,
+        createdAt: contacts.createdAt,
+        updatedAt: contacts.updatedAt,
+        extractedData: contacts.extractedData,
+        enrichedData: contacts.enrichedData,
+      }).from(contacts);
+
+      // Get user information for each contact
+      const contactsWithUsers = await Promise.all(
+        allContacts.map(async (contact) => {
+          const [user] = await db
+            .select({
+              email: users.email,
+              firstName: users.firstName,
+              lastName: users.lastName,
+            })
+            .from(users)
+            .where(eq(users.id, contact.userId));
+
+          return {
+            ...contact,
+            userInfo: user || { email: 'Unknown', firstName: '', lastName: '' },
+          };
+        })
+      );
+
+      res.json(contactsWithUsers);
+    } catch (error) {
+      console.error("Error fetching all contacts:", error);
+      res.status(500).json({ message: "Failed to fetch all contacts" });
+    }
+  });
+
+  // Admin search endpoint
+  app.post('/api/admin/contacts/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { query } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ message: "Query is required" });
+      }
+
+      // Get Gemini API key
+      const geminiKey = await storage.getApiKeyByService(userId, 'gemini', 'api_key');
+      if (!geminiKey) {
+        return res.status(400).json({ message: "Gemini API key not configured. Please add it in your profile." });
+      }
+
+      // Get all contacts from all users
+      const allContacts = await db.select().from(contacts);
+      
+      // Use AI-powered semantic search
+      const results = await semanticSearchContacts(query, allContacts, geminiKey.encryptedValue);
+      
+      // Add user info to results
+      const resultsWithUsers = await Promise.all(
+        results.map(async (contact: any) => {
+          const [user] = await db
+            .select({
+              email: users.email,
+              firstName: users.firstName,
+              lastName: users.lastName,
+            })
+            .from(users)
+            .where(eq(users.id, contact.userId));
+
+          return {
+            ...contact,
+            userInfo: user || { email: 'Unknown', firstName: '', lastName: '' },
+          };
+        })
+      );
+
+      res.json(resultsWithUsers);
+    } catch (error) {
+      console.error("Error searching all contacts:", error);
+      res.status(500).json({ message: "Failed to search contacts" });
     }
   });
 

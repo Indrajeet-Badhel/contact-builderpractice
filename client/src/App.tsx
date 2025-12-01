@@ -12,6 +12,7 @@ import LoginPage from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import UploadPage from "@/pages/upload";
 import ProfilePage from "@/pages/profile";
+import AdminContactsPage from "@/pages/admin-contacts";
 
 function LoadingSpinner() {
   return (
@@ -86,6 +87,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         {() => <ProtectedRoute component={ProfilePage} />}
+      </Route>
+      <Route path="/admin/contacts">
+        {() => <ProtectedRoute component={AdminContactsPage} />}
       </Route>
       <Route component={NotFound} />
     </Switch>
