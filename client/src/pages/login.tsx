@@ -77,6 +77,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10"
+                autoComplete="email"
                 required
                 data-testid="input-email"
               />
@@ -94,6 +95,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="pl-10"
+                autoComplete="current-password"
                 required
                 data-testid="input-password"
               />
@@ -125,14 +127,6 @@ export default function LoginPage() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
-        </div>
-
-        <div className="mt-6 p-4 bg-muted rounded-md">
-          <p className="text-sm text-muted-foreground text-center">
-            <strong>Test Credentials:</strong><br />
-            Email: test@example.com<br />
-            Password: password123
-          </p>
         </div>
       </Card>
     </div>

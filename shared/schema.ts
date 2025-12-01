@@ -14,7 +14,7 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table - required for Replit Auth
+// Session storage table
 export const sessions = pgTable(
   "sessions",
   {
@@ -25,7 +25,7 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table - required for Replit Auth
+// User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
@@ -74,6 +74,7 @@ export const contacts = pgTable("contacts", {
   skills: text("skills").array(),
   linkedinUrl: varchar("linkedin_url"),
   githubUrl: varchar("github_url"),
+  orcidUrl: varchar("orcid_url"),
   twitterUrl: varchar("twitter_url"),
   websiteUrl: varchar("website_url"),
   bio: text("bio"),

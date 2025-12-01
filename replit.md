@@ -2,7 +2,7 @@
 
 ## Overview
 
-Contact Builder is an AI-driven system that automatically constructs comprehensive, verified contact profiles from minimal input (documents, resumes, PDFs, business cards, images). The application leverages OCR, NLP, and OSINT (Open Source Intelligence) to extract, enrich, and verify contact information, then outputs CRM-ready formats (vCard, CSV, JSON, HubSpot integration).
+Contact Builder is an AI-driven system that automatically constructs comprehensive, verified contact profiles from minimal input (documents, resumes, PDFs, business cards, images). The application leverages OCR, NLP, and OSINT (Open Source Intelligence) to extract, enrich, and verify contact information, then outputs CRM-ready formats (vCard, CSV, Excel).
 
 **Core Capabilities:**
 - Document parsing and AI extraction (Gemini AI)
@@ -56,10 +56,10 @@ Preferred communication style: Simple, everyday language.
 **API Pattern:** RESTful JSON API with file upload support
 
 **Authentication:**
-- Replit Auth (OpenID Connect) with Passport.js strategy
-- Session-based authentication using express-session
-- PostgreSQL session store (connect-pg-simple)
+- Simple session-based email/password authentication
+- In-memory session store (memorystore)
 - Protected routes via isAuthenticated middleware
+- For production: Replace with Firebase Auth or similar
 
 **File Upload:**
 - Multer middleware for multipart/form-data
@@ -92,12 +92,14 @@ Preferred communication style: Simple, everyday language.
    - Returns ranked contact matches
 
 **API Routes:**
+- `POST /api/login` - Authenticate user
+- `GET /api/logout` - End session
 - `POST /api/documents/upload` - Upload and extract document
 - `GET /api/contacts` - List all user contacts
 - `GET /api/contacts/:id` - Get single contact
 - `POST /api/contacts/search` - Semantic search
 - `GET /api/documents` - List upload history with processing status
-- `POST /api/api-keys` - Store encrypted third-party API credentials
+- `POST /api/api-keys` - Store third-party API credentials
 - `GET /api/auth/user` - Current authenticated user
 
 ### Data Storage
@@ -106,92 +108,29 @@ Preferred communication style: Simple, everyday language.
 
 **ORM:** Drizzle ORM with schema-first approach
 
-**Schema Design:**
+### Running Locally
 
-```
-users
-├─ id (primary key)
-├─ email, firstName, lastName
-└─ profileImageUrl, timestamps
-
-contacts
-├─ id (primary key)
-├─ userId (foreign key to users)
-├─ name, email, phone
-├─ company, title, location
-├─ skills (array), bio
-├─ linkedinUrl, githubUrl, websiteUrl
-├─ education (JSONB), experience (JSONB)
-├─ enrichmentData (JSONB - sources, confidence)
-├─ publications (JSONB), repositories (JSONB)
-└─ confidenceScore, createdAt, updatedAt
-
-documents
-├─ id (primary key)
-├─ userId (foreign key to users)
-├─ filename, mimeType, fileSize, filePath
-├─ status (pending/processing/completed/failed)
-├─ extractedData (JSONB)
-├─ contactId (foreign key to contacts - after extraction)
-└─ uploadedAt, processedAt
-
-api_keys
-├─ id (primary key)
-├─ userId (foreign key to users)
-├─ service (gmail, hubspot, gemini, huggingface)
-├─ keyName (api_key, client_id, client_secret)
-├─ encryptedValue (text)
-└─ isValid, lastValidated
-
-extraction_jobs
-├─ id (primary key)
-├─ documentId (foreign key to documents)
-├─ status, progress
-└─ timestamps
-
-sessions (for Replit Auth)
-├─ sid (primary key)
-├─ sess (JSONB)
-└─ expire
-```
-
-**Data Patterns:**
-- JSONB for flexible nested data (education, experience, sources)
-- Cascade deletion on user removal
-- Confidence scoring for data quality tracking
-- Source attribution for every enriched field (GDPR transparency)
-
-### External Dependencies
-
-**AI/ML Services:**
-- Google Gemini API - Document extraction and semantic search (requires API key)
-- HuggingFace Inference API - Text similarity for deduplication (requires API key)
-
-**Database:**
-- Neon PostgreSQL - Serverless Postgres database (requires DATABASE_URL)
-
-**Authentication:**
-- Replit Auth (OIDC) - User authentication (requires REPL_ID, SESSION_SECRET)
-
-**Data Sources (Public APIs):**
-- GitHub API - Profile, repositories, commit activity (optional token for rate limits)
-- ORCID API - Academic profiles, publications (public, no auth)
-- Future integrations: Kaggle, Google Scholar, OpenCorporates, Reddit, Twitter
+1. Install dependencies: `npm install`
+2. Set up environment variables in `.env`:
+   - `DATABASE_URL` - PostgreSQL connection string
+   - `SESSION_SECRET` - Random string for session encryption
+3. Push database schema: `npm run db:push`
+4. Start development server: `npm run dev`
+5. Open `http://localhost:5000`
 
 **Environment Variables Required:**
 ```
-DATABASE_URL - Neon PostgreSQL connection string
-GEMINI_API_KEY - User-provided or app-level Gemini API key
-HUGGINGFACE_API_KEY - Optional for deduplication
-GITHUB_TOKEN - Optional for increased API rate limits
-SESSION_SECRET - Secure random string for session encryption
-REPL_ID - Replit deployment identifier (auto-provided)
-ISSUER_URL - OIDC issuer (defaults to https://replit.com/oidc)
+DATABASE_URL - PostgreSQL connection string
+SESSION_SECRET - Secure random string for session encryption (optional, has default)
 ```
+
+**Optional API Keys (add in Profile page after login):**
+- GEMINI_API_KEY - For document extraction
+- GITHUB_TOKEN - For GitHub profile enrichment
+- HUGGINGFACE_API_KEY - For deduplication
 
 **Privacy & Compliance:**
 - Only public data sources accessed (no login-required scraping)
 - GDPR-compliant data collection (user consent, data minimization)
 - No sensitive special-category data (health, religion)
 - Source attribution for all enriched data
-- User-controlled API keys (encrypted storage)
