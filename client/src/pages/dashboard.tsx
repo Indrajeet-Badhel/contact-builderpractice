@@ -408,7 +408,7 @@ const filteredContacts =
           </div>
         </Card>
         
-// Replace the existing Search Bar Card in dashboard.tsx with this:
+
 
 <Card className="p-4 mb-6 border-2">
   <div className="flex flex-col gap-3">
