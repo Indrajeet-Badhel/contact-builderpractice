@@ -58,15 +58,23 @@ const getSourceUrl = (contact: Contact, type: string): string | undefined => {
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [newContactUrl, setNewContactUrl] = useState("");   
+
+  // ===== AI SEARCH STATES =====
+  const [isSearching, setIsSearching] = useState(false);
+  const [aiSearchResults, setAiSearchResults] = useState<Contact[] | null>(null);
+  const [searchExplanation, setSearchExplanation] = useState("");
+
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [newContactUrl, setNewContactUrl] = useState("");   
   const queryClient = useQueryClient();                     
   const { toast } = useToast();
 
   const { data: contacts = [], isLoading } = useQuery<Contact[]>({
     queryKey: ['/api/contacts'],
   });
+
+
 
   const handleExportContact = (contact: Contact) => {
     const exportData = {
@@ -89,6 +97,52 @@ export default function Dashboard() {
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+
+// ===== AI SEARCH STATES =====
+const [isSearching, setIsSearching] = useState(false);
+const [aiSearchResults, setAiSearchResults] = useState<Contact[] | null>(null);
+const [searchExplanation, setSearchExplanation] = useState("");
+
+// ===== AI CHAT SEARCH HANDLER =====
+const handleAiSearch = async () => {
+  if (!searchQuery.trim()) return;
+
+  try {
+    setIsSearching(true);
+
+    const res = await fetch("/api/contacts/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ query: searchQuery }),
+    });
+
+    if (!res.ok) {
+      throw new Error("AI search failed");
+    }
+
+    const data = await res.json();
+
+    setAiSearchResults(data || []);
+    setSearchExplanation(
+      Array.isArray(data) && data.length > 0
+        ? "AI matched contacts based on your natural language query."
+        : "No suitable contacts found for your query."
+    );
+
+  } catch (error) {
+    console.error(error);
+    toast({
+      title: "Search Failed",
+      description: "AI search request did not succeed",
+      variant: "destructive",
+    });
+  } finally {
+    setIsSearching(false);
+  }
+};
+
+    
     a.href = url;
     a.download = `${contact.name.replace(/\s+/g, '_')}_contact.json`;
     document.body.appendChild(a);
@@ -101,6 +155,42 @@ export default function Dashboard() {
       description: `${contact.name}'s contact information has been downloaded as JSON.`,
     });
   };
+// ===== AI CHAT SEARCH HANDLER =====
+const handleAiSearch = async () => {
+  if (!searchQuery.trim()) return;
+
+  try {
+    setIsSearching(true);
+
+    const res = await fetch("/api/contacts/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ query: searchQuery }),
+    });
+
+    if (!res.ok) throw new Error("AI search failed");
+
+    const data = await res.json();
+
+    setAiSearchResults(data || []);
+    setSearchExplanation(
+      Array.isArray(data) && data.length > 0
+        ? "AI found results using natural-language understanding."
+        : "No contacts matched your query."
+    );
+
+  } catch (error) {
+    console.error(error);
+    toast({
+      title: "Search Failed",
+      description: "Something went wrong while searching.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsSearching(false);
+  }
+};
 
     const handleImportFromUrl = async () => {
     if (!newContactUrl.trim()) {
@@ -229,19 +319,29 @@ export default function Dashboard() {
     }
   };
 
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = 
-      contact.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.skills?.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesTags = selectedTags.length === 0 || 
-      selectedTags.some(tag => contact.tags?.includes(tag));
-    
-    return matchesSearch && matchesTags;
-  });
+const filteredContacts =
+  aiSearchResults !== null
+    ? aiSearchResults
+    : contacts.filter(contact => {
+        const q = searchQuery.toLowerCase();
+
+        const matchesSearch =
+          contact.name?.toLowerCase().includes(q) ||
+          contact.company?.toLowerCase().includes(q) ||
+          contact.title?.toLowerCase().includes(q) ||
+          contact.email?.toLowerCase().includes(q) ||
+          contact.skills?.some(skill =>
+            skill.toLowerCase().includes(q)
+          );
+
+        const matchesTags =
+          selectedTags.length === 0 ||
+          selectedTags.some(tag => contact.tags?.includes(tag));
+
+        return matchesSearch && matchesTags;
+      });
+
+
 
   const getConfidenceColor = (score: number) => {
     if (score >= 0.9) return "text-green-600 dark:text-green-400";
@@ -308,22 +408,69 @@ export default function Dashboard() {
           </div>
         </Card>
         
-        {/* Search Bar */}
-        <Card className="p-4 mb-6 border-2">
-          <div className="flex items-center gap-3">
-            <Sparkles className="w-5 h-5 text-primary shrink-0" />
-            <Input
-              placeholder="Ask AI: 'Find Python developers with ML experience'..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="border-0 focus-visible:ring-0 text-base bg-transparent"
-              data-testid="input-search"
-            />
-            <Button size="icon" variant="ghost" data-testid="button-search">
-              <Search className="w-5 h-5" />
-            </Button>
-          </div>
-        </Card>
+// Replace the existing Search Bar Card in dashboard.tsx with this:
+
+<Card className="p-4 mb-6 border-2">
+  <div className="flex flex-col gap-3">
+    <div className="flex items-center gap-3">
+      <Sparkles className={`w-5 h-5 shrink-0 ${isSearching ? 'animate-pulse text-primary' : 'text-primary'}`} />
+      <Input
+        placeholder="Ask me anything: 'Find Python developers with ML experience' or 'people from Google'..."
+        value={searchQuery}
+        onChange={(e) => {
+          setSearchQuery(e.target.value);
+          // Clear AI results when user types
+          if (!e.target.value.trim()) {
+            setAiSearchResults(null);
+            setSearchExplanation("");
+          }
+        }}
+        onKeyPress={(e) => {
+          if (e.key === 'Enter') {
+            handleAiSearch();
+          }
+        }}
+        className="border-0 focus-visible:ring-0 text-base bg-transparent"
+        data-testid="input-search"
+        disabled={isSearching}
+      />
+      <Button 
+        size="icon" 
+        variant={aiSearchResults !== null ? "default" : "ghost"}
+        onClick={handleAiSearch}
+        disabled={isSearching || !searchQuery.trim()}
+        data-testid="button-search"
+      >
+        {isSearching ? (
+          <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <Search className="w-5 h-5" />
+        )}
+      </Button>
+      {aiSearchResults !== null && (
+        <Button 
+          size="sm" 
+          variant="outline"
+          onClick={() => {
+            setSearchQuery("");
+            setAiSearchResults(null);
+            setSearchExplanation("");
+          }}
+        >
+          Clear
+        </Button>
+      )}
+    </div>
+    
+    {/* Show AI explanation */}
+    {searchExplanation && (
+      <div className="flex items-start gap-2 p-3 bg-primary/10 rounded-lg">
+        <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+        <p className="text-sm text-foreground">{searchExplanation}</p>
+      </div>
+    )}
+  </div>
+</Card>
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
