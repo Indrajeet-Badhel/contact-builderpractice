@@ -23,7 +23,6 @@ export function NavBar() {
             <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               Contact Builder
             </span>
-            href ="/dashboard"
           </Link>
 
           <div className="hidden md:flex items-center gap-1">

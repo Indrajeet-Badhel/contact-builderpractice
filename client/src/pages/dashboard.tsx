@@ -370,6 +370,13 @@ const filteredContacts =
               </p>
             </div>
             <div className="flex gap-2">
+              <Button 
+    variant="default" 
+    onClick={() => (window.location.href = "/graph")}
+    className="bg-blue-600 hover:bg-blue-700 text-white"
+  >
+    Knowledge Graph
+  </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" data-testid="button-export">

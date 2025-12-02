@@ -13,6 +13,7 @@ import Dashboard from "@/pages/dashboard";
 import UploadPage from "@/pages/upload";
 import ProfilePage from "@/pages/profile";
 import AdminContactsPage from "@/pages/admin-contacts";
+import GraphPage from "@/pages/graph"; 
 
 function LoadingSpinner() {
   return (
@@ -75,24 +76,37 @@ function AuthRoute({ component: Component }: { component: React.ComponentType })
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/login">
-        {() => <AuthRoute component={LoginPage} />}
-      </Route>
-      <Route path="/dashboard">
-        {() => <ProtectedRoute component={Dashboard} />}
-      </Route>
-      <Route path="/upload">
-        {() => <ProtectedRoute component={UploadPage} />}
-      </Route>
-      <Route path="/profile">
-        {() => <ProtectedRoute component={ProfilePage} />}
-      </Route>
-      <Route path="/admin/contacts">
-        {() => <ProtectedRoute component={AdminContactsPage} />}
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
+  <Route path="/" component={Landing} />
+  
+  <Route path="/login">
+    {() => <AuthRoute component={LoginPage} />}
+  </Route>
+
+  <Route path="/dashboard">
+    {() => <ProtectedRoute component={Dashboard} />}
+  </Route>
+
+  <Route path="/upload">
+    {() => <ProtectedRoute component={UploadPage} />}
+  </Route>
+
+  <Route path="/profile">
+    {() => <ProtectedRoute component={ProfilePage} />}
+  </Route>
+
+  <Route path="/admin/contacts">
+    {() => <ProtectedRoute component={AdminContactsPage} />}
+  </Route>
+
+  {/* ✅ NEW: Graph Route */}
+  <Route path="/graph">
+    {() => <ProtectedRoute component={GraphPage} />}
+  </Route>
+
+  {/* fallback */}
+  <Route component={NotFound} />
+</Switch>
+
   );
 }
 
