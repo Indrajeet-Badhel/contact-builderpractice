@@ -22,8 +22,10 @@ function jaccard(a: string[] | undefined, b: string[] | undefined): number {
   if (!a || !b || a.length === 0 || b.length === 0) return 0;
   const A = new Set(a.map(x => x.toLowerCase()));
   const B = new Set(b.map(x => x.toLowerCase()));
-  const inter = [...A].filter(x => B.has(x)).length;
-  const union = new Set([...A, ...B]).size;
+  const arrA = Array.from(A);
+  const arrB = Array.from(B);
+  const inter = arrA.filter(x => B.has(x)).length;
+  const union = new Set(arrA.concat(arrB)).size;
   return union === 0 ? 0 : inter / union;
 }
 
