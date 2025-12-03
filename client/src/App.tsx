@@ -13,7 +13,8 @@ import Dashboard from "@/pages/dashboard";
 import UploadPage from "@/pages/upload";
 import ProfilePage from "@/pages/profile";
 import AdminContactsPage from "@/pages/admin-contacts";
-import GraphPage from "@/pages/graph"; 
+import GraphPage from "@/pages/graph";
+import PrivacyPolicyPage from "@/pages/privacy-policy"; 
 
 function LoadingSpinner() {
   return (
@@ -81,6 +82,8 @@ function Router() {
   <Route path="/login">
     {() => <AuthRoute component={LoginPage} />}
   </Route>
+
+  <Route path="/privacy-policy" component={PrivacyPolicyPage} />
 
   <Route path="/dashboard">
     {() => <ProtectedRoute component={Dashboard} />}

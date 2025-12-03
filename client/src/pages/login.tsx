@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,10 +105,32 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <div className="flex items-start space-x-2 pt-2">
+            <input
+              id="privacy-agreement"
+              type="checkbox"
+              checked={agreedToPrivacy}
+              onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+              className="mt-1 rounded border-gray-300"
+              required
+              data-testid="checkbox-privacy"
+            />
+            <Label htmlFor="privacy-agreement" className="text-sm font-normal cursor-pointer">
+              I agree to the{" "}
+              <button
+                type="button"
+                onClick={() => setLocation("/privacy-policy")}
+                className="text-primary hover:underline font-semibold"
+              >
+                Privacy Policy
+              </button>
+            </Label>
+          </div>
+
           <Button
             type="submit"
             className="w-full"
-            disabled={isLoading}
+            disabled={isLoading || !agreedToPrivacy}
             data-testid="button-login"
           >
             {isLoading ? (
