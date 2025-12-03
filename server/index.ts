@@ -1,8 +1,24 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import gmailRouter from "./gmail";
+import cors from "cors";
+import session from "express-session";
 
 const app = express();
+
+// CORS + session must be registered on the express `app` instance
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
+
+app.use(session({
+  secret: "supersecret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false }
+}));
 
 declare module 'http' {
   interface IncomingMessage {
@@ -15,6 +31,8 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+
+app.use("/api/gmail", gmailRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();

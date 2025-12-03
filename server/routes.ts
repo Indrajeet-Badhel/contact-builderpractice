@@ -12,6 +12,31 @@ import * as XLSX from "xlsx";
 import {pool, db} from "./db";
 import { contacts, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import AdmZip from "adm-zip";
+import fs from "fs";
+import pLimit from "p-limit";
+import mime from "mime-types";
+
+
+
+const limit = pLimit(1); 
+
+// Simple retry helper for async tasks (attempts, with optional delay)
+async function retry<T>(fn: () => Promise<T>, attempts = 3, delayMs = 500): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 
 function normalizeString(value?: string | null): string {
   return (value || "").toLowerCase().trim();
@@ -273,7 +298,9 @@ const upload = multer({
       'image/png',
       'image/jpeg',
       'image/jpg',
-      'text/plain'
+      'text/plain',
+       'application/zip',                     // ← NEW
+    'application/x-zip-compressed'
     ];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -399,36 +426,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Document upload and extraction routes
-  app.post('/api/documents/upload', isAuthenticated, upload.single('document'), async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const file = req.file;
 
-      if (!file) {
-        return res.status(400).json({ message: "No file uploaded" });
+  // Retry helper for async tasks with types
+  async function retry<T>(fn: () => Promise<T>, retries = 3, wait = 1500): Promise<T> {
+    let lastErr: any;
+    while (retries--) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        if (retries === 0) throw err;
+        // pause before next attempt
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, wait));
       }
-
-      // Create document record
-      const document = await storage.createDocument({
-        userId,
-        filename: file.filename,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        fileSize: file.size,
-        filePath: file.path,
-        status: 'processing',
-        extractionProgress: 0,
-      });
-
-      // Start extraction process asynchronously
-      processDocumentExtraction(document.id, userId, file.path, file.mimetype);
-
-      res.json({ documentId: document.id, status: 'processing' });
-    } catch (error) {
-      console.error("Error uploading document:", error);
-      res.status(500).json({ message: "Failed to upload document" });
     }
+    throw lastErr;
+  }
+app.post('/api/documents/upload', isAuthenticated, upload.single('document'), async (req: any, res) => {
+
+
+  try {
+    const userId = req.user.claims.sub;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // ----------------------------------------------------
+    // CASE 1: ZIP file → extract & process each file
+    // ----------------------------------------------------
+if (file.mimetype === "application/zip" || file.mimetype === "application/x-zip-compressed") {
+  console.log("ZIP file detected, extracting...");
+
+  const zip = new AdmZip(file.path);
+  const entries = zip.getEntries();
+
+  const extractedDocuments = [];
+
+
+
+// Add top of file:
+  // For free tier: process 1-by-1 safely. Change to pLimit(4) for paid tier.
+
+for (const entry of entries) {
+  if (entry.isDirectory) continue;
+
+  const nameLower = entry.entryName.toLowerCase();
+  const allowed = [".pdf", ".docx", ".png", ".jpg", ".jpeg", ".txt"];
+  if (!allowed.some(a => nameLower.endsWith(a))) continue;
+
+  const outputPath = path.join(uploadDir, `${Date.now()}-${path.basename(entry.entryName)}`);
+
+  // Write extracted file from ZIP safely
+  fs.writeFileSync(outputPath, entry.getData());
+
+  const stat = fs.statSync(outputPath);
+
+  const mimeType =
+    mime.lookup(outputPath) ||
+    (outputPath.endsWith(".docx") ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "");
+
+  const doc = await storage.createDocument({
+    userId,
+    filename: path.basename(outputPath),
+    originalName: entry.entryName,
+    mimeType,
+    fileSize: stat.size,
+    filePath: outputPath,
+    status: "processing",
+    extractionProgress: 0,
   });
+
+  extractedDocuments.push(doc);
+
+  // QUEUE + RETRY the extraction task
+  limit(() =>
+    retry(() => processDocumentExtraction(doc.id, userId, outputPath, mimeType), 3)
+  );
+}
+
+  return res.json({
+    success: true,
+    extractedFiles: extractedDocuments.length,
+    documents: extractedDocuments,
+  });
+}
+
+    // ----------------------------------------------------
+    // CASE 2: Normal Single File
+    // ----------------------------------------------------
+    const document = await storage.createDocument({
+      userId,
+      filename: file.filename,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+      filePath: file.path,
+      status: 'processing',
+      extractionProgress: 0,
+    });
+
+    processDocumentExtraction(document.id, userId, file.path, file.mimetype);
+
+    res.json({ documentId: document.id, status: 'processing' });
+
+  } catch (error) {
+    console.error("Error uploading document:", error);
+    res.status(500).json({ message: "Failed to upload document" });
+  }
+});
+
 
   app.get('/api/documents', isAuthenticated, async (req: any, res) => {
     try {
@@ -974,6 +1083,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
+
+
 // Background task to process document extraction
 async function processDocumentExtraction(documentId: string, userId: string, filePath: string, mimeType: string) {
   try {
@@ -988,6 +1099,7 @@ async function processDocumentExtraction(documentId: string, userId: string, fil
     if (!geminiKey) {
       throw new Error("Gemini API key not configured. Please add it in your profile.");
     }
+    
 
     // Extract contact data using Gemini AI
     const extractedData = await extractContactFromDocument(filePath, mimeType, geminiKey.encryptedValue);

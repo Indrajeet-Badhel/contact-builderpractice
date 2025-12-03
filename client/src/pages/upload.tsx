@@ -148,6 +148,7 @@ export default function UploadPage() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'image/*': ['.png', '.jpg', '.jpeg'],
       'text/plain': ['.txt'],
+      'application/zip': ['.zip'], 
     },
     multiple: true,
   });
@@ -223,6 +224,7 @@ export default function UploadPage() {
                   <Badge variant="secondary">PNG</Badge>
                   <Badge variant="secondary">JPG</Badge>
                   <Badge variant="secondary">TXT</Badge>
+                  <Badge variant="secondary">ZIP</Badge>
                 </div>
               </div>
             </motion.div>

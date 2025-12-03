@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
+import EmailImportButton from "@/components/ui/EmailImportButton";
 import {
   Dialog,
   DialogContent,
@@ -97,52 +98,6 @@ export default function Dashboard() {
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-
-// ===== AI SEARCH STATES =====
-const [isSearching, setIsSearching] = useState(false);
-const [aiSearchResults, setAiSearchResults] = useState<Contact[] | null>(null);
-const [searchExplanation, setSearchExplanation] = useState("");
-
-// ===== AI CHAT SEARCH HANDLER =====
-const handleAiSearch = async () => {
-  if (!searchQuery.trim()) return;
-
-  try {
-    setIsSearching(true);
-
-    const res = await fetch("/api/contacts/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ query: searchQuery }),
-    });
-
-    if (!res.ok) {
-      throw new Error("AI search failed");
-    }
-
-    const data = await res.json();
-
-    setAiSearchResults(data || []);
-    setSearchExplanation(
-      Array.isArray(data) && data.length > 0
-        ? "AI matched contacts based on your natural language query."
-        : "No suitable contacts found for your query."
-    );
-
-  } catch (error) {
-    console.error(error);
-    toast({
-      title: "Search Failed",
-      description: "AI search request did not succeed",
-      variant: "destructive",
-    });
-  } finally {
-    setIsSearching(false);
-  }
-};
-
-    
     a.href = url;
     a.download = `${contact.name.replace(/\s+/g, '_')}_contact.json`;
     document.body.appendChild(a);
@@ -412,6 +367,7 @@ const filteredContacts =
               <Sparkles className="w-4 h-4 mr-2" />
               Import from URL
             </Button>
+            <EmailImportButton />
           </div>
         </Card>
         
