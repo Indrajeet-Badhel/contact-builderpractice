@@ -17,6 +17,8 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, ilike, or } from "drizzle-orm";
+import { encrypt, decrypt } from "./security/encryption";
+import { validateAndSanitize } from "./security/validation";
 
 export interface IStorage {
   // User operations
@@ -38,7 +40,7 @@ export interface IStorage {
   updateDocument(id: string, userId: string, data: Partial<Document>): Promise<Document>;
   deleteDocument(id: string, userId: string): Promise<void>;
 
-  // API Key operations
+  // API Key operations (with encryption)
   getApiKeys(userId: string): Promise<ApiKey[]>;
   getApiKey(id: string, userId: string): Promise<ApiKey | undefined>;
   getApiKeyByService(userId: string, service: string, keyName: string): Promise<ApiKey | undefined>;
@@ -61,15 +63,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Sanitize user data
+    const sanitized = validateAndSanitize(userData);
+    
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values(sanitized)
       .onConflictDoUpdate({
-        target: users.email, // conflict on email, not id
+        target: users.email,
         set: {
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          profileImageUrl: userData.profileImageUrl,
+          firstName: sanitized.firstName,
+          lastName: sanitized.lastName,
+          profileImageUrl: sanitized.profileImageUrl,
           updatedAt: new Date(),
         },
       })
@@ -77,7 +82,7 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  // Contact operations
+  // Contact operations with sanitization
   async getContacts(userId: string): Promise<Contact[]> {
     return await db.select().from(contacts).where(eq(contacts.userId, userId));
   }
@@ -91,25 +96,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createContact(contactData: InsertContact): Promise<Contact> {
-    const [contact] = await db.insert(contacts).values(contactData as any).returning();
+    // Sanitize all string fields
+    const sanitized = validateAndSanitize(contactData);
+    
+    const [contact] = await db.insert(contacts).values(sanitized as any).returning();
     return contact;
   }
 
   async updateContact(id: string, userId: string, data: Partial<Contact>): Promise<Contact> {
+    // Sanitize update data
+    const sanitized = validateAndSanitize(data);
+    
     const [contact] = await db
       .update(contacts)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...sanitized, updatedAt: new Date() })
       .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
       .returning();
+    
+    if (!contact) {
+      throw new Error('Contact not found or unauthorized');
+    }
+    
     return contact;
   }
 
   async deleteContact(id: string, userId: string): Promise<void> {
-    await db.delete(contacts).where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
+    const result = await db
+      .delete(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
+      .returning();
+    
+    if (result.length === 0) {
+      throw new Error('Contact not found or unauthorized');
+    }
   }
 
   async searchContacts(userId: string, query: string): Promise<Contact[]> {
-    const searchPattern = `%${query}%`;
+    // Sanitize search query
+    const sanitizedQuery = validateAndSanitize(query);
+    const searchPattern = `%${sanitizedQuery}%`;
+    
     return await db
       .select()
       .from(contacts)
@@ -150,16 +176,34 @@ export class DatabaseStorage implements IStorage {
       .set(data)
       .where(and(eq(documents.id, id), eq(documents.userId, userId)))
       .returning();
+    
+    if (!document) {
+      throw new Error('Document not found or unauthorized');
+    }
+    
     return document;
   }
 
   async deleteDocument(id: string, userId: string): Promise<void> {
-    await db.delete(documents).where(and(eq(documents.id, id), eq(documents.userId, userId)));
+    const result = await db
+      .delete(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, userId)))
+      .returning();
+    
+    if (result.length === 0) {
+      throw new Error('Document not found or unauthorized');
+    }
   }
 
-  // API Key operations
+  // API Key operations with encryption
   async getApiKeys(userId: string): Promise<ApiKey[]> {
-    return await db.select().from(apiKeys).where(eq(apiKeys.userId, userId));
+    const keys = await db.select().from(apiKeys).where(eq(apiKeys.userId, userId));
+    
+    // Decrypt values before returning
+    return keys.map(key => ({
+      ...key,
+      encryptedValue: key.encryptedValue ? decrypt(key.encryptedValue) : '',
+    }));
   }
 
   async getApiKey(id: string, userId: string): Promise<ApiKey | undefined> {
@@ -167,7 +211,14 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(apiKeys)
       .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
-    return apiKey;
+    
+    if (!apiKey) return undefined;
+    
+    // Decrypt value before returning
+    return {
+      ...apiKey,
+      encryptedValue: apiKey.encryptedValue ? decrypt(apiKey.encryptedValue) : '',
+    };
   }
 
   async getApiKeyByService(userId: string, service: string, keyName: string): Promise<ApiKey | undefined> {
@@ -181,25 +232,65 @@ export class DatabaseStorage implements IStorage {
           eq(apiKeys.keyName, keyName)
         )
       );
-    return apiKey;
+    
+    if (!apiKey) return undefined;
+    
+    // Decrypt value before returning
+    return {
+      ...apiKey,
+      encryptedValue: apiKey.encryptedValue ? decrypt(apiKey.encryptedValue) : '',
+    };
   }
 
   async createApiKey(apiKeyData: InsertApiKey): Promise<ApiKey> {
-    const [apiKey] = await db.insert(apiKeys).values(apiKeyData).returning();
-    return apiKey;
+    // Encrypt the API key before storing
+    const encrypted = {
+      ...apiKeyData,
+      encryptedValue: encrypt(apiKeyData.encryptedValue),
+    };
+    
+    const [apiKey] = await db.insert(apiKeys).values(encrypted).returning();
+    
+    // Return with decrypted value
+    return {
+      ...apiKey,
+      encryptedValue: apiKeyData.encryptedValue,
+    };
   }
 
   async updateApiKey(id: string, userId: string, data: Partial<ApiKey>): Promise<ApiKey> {
+    // Encrypt value if it's being updated
+    const updateData = { ...data };
+    if (updateData.encryptedValue) {
+      updateData.encryptedValue = encrypt(updateData.encryptedValue);
+    }
+    
     const [apiKey] = await db
       .update(apiKeys)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...updateData, updatedAt: new Date() })
       .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)))
       .returning();
-    return apiKey;
+    
+    if (!apiKey) {
+      throw new Error('API key not found or unauthorized');
+    }
+    
+    // Return with decrypted value
+    return {
+      ...apiKey,
+      encryptedValue: apiKey.encryptedValue ? decrypt(apiKey.encryptedValue) : '',
+    };
   }
 
   async deleteApiKey(id: string, userId: string): Promise<void> {
-    await db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
+    const result = await db
+      .delete(apiKeys)
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)))
+      .returning();
+    
+    if (result.length === 0) {
+      throw new Error('API key not found or unauthorized');
+    }
   }
 
   // Extraction Job operations
@@ -226,6 +317,11 @@ export class DatabaseStorage implements IStorage {
       .set(data)
       .where(and(eq(extractionJobs.id, id), eq(extractionJobs.userId, userId)))
       .returning();
+    
+    if (!job) {
+      throw new Error('Extraction job not found or unauthorized');
+    }
+    
     return job;
   }
 }
