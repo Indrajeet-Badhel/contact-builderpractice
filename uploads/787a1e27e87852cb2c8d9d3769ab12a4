@@ -1,0 +1,33 @@
+name,email,phone,company,title,location,skills,bio
+Priyansh Jain,pajain9506@gmail.com ,78210120851,Evalvate,CEO,India,"[""Product Strategy"",""Business Strategy"",""Market Research"",""Team Leadership"",""Product Management"",""Branding"",""Fundraising"",""Go-To-Market"",""User Research"",""Business Development"",""High-Level Tech Understanding"",""Communication"",""Vision Setting""]",CEO Evalvate | Student VIT | Second Year
+Aarav Mehta,aarav.mehta@example.com,+91 98765 43210,InnoByte Labs,AI Research Intern,"Bengaluru, India","[""Python"",""TensorFlow"",""Pandas"",""Machine Learning"",""Data Analysis""]",Exploring Data Science in Java
+Riya Kapoor,riya.kapoor@example.com,+91 90123 45678,CodeNova,Frontend Developer,"Mumbai, India","[""HTML"",""CSS"",""JavaScript"",""React.js"",""TailwindCSS""]","Second Year student | Frontend Dev | Learning Backend (Node.js, Express) & AI/ML | Building with React, Python & exploring DSA in Java
+"
+Kabir Shah,kabir.shah@example.com,+91 88990 77881,CyberSphere,Backend Developer,"Delhi, India","[""Node.js"",""Express.js"",""MongoDB"",""REST APIs"",""TypeScript""]","A highly motivated and flexible individual with a strong passion for learning and growth. Consistently committed to delivering quality work, with a proven ability to adapt to new environments and technologies. Seeking opportunities to contribute meaningfully while expanding skills in software development and collaborative teamwork."
+Meher Sharma,meher.sharma@example.com,+91 77654 88990,Lightwave AI,ML Engineer,"Pune, Maharashtra, India","[""Python"",""Scikit-learn"",""Numpy"",""Deep Learning"",""Model Deployment""]","I am Prof. Dr. Vijay Mane, honored to serve as Dean, Alumni & Outreach at Vishwakarma Institute of Technology (VIT) Pune. With a solid academic foundation from Walchand College of Engineering, Sangli, and a PhD from Savitribai Phule Pune University, I have dedicated over two decades to fostering excellence, innovation, and strong connections within the VIT community."
+Saanvi Nair,saanvi.nair@example.com,+91 99887 66221,DesignCraft,UX/UI Designer,"Kochi, India","[""Figma"",""Wireframing"",""Prototyping"",""UI Design"",""User Research""]",VITP'28 | Computer Science with AIML | UI/UX Designer | Hobbyist Photographer | Fitness and Nutrition
+Arjun Varma,arjun.varma@example.com,+91 80808 90909,DataNest,Cloud Engineer,"Hyderabad, India","[""AWS"",""Docker"",""Kubernetes"",""Linux"",""CI/CD""]","Equity Research Analyst specializing in microeconomics-derived, evidence-driven analysis across sectors including Waste Management and Power. Experienced in AI/ML coding. Seeking Private Equity opportunities within Mergers & Acquisitions."
+Tia Fernandes,tia.fernandes@example.com,+91 90909 70707,MedTech AI,AI/ML Intern,"Goa, India","[""Python"",""Jupyter"",""LLMs"",""RAG"",""Vector Databases""]",Full Stack Developer | Aspiring Software Engineer | Problem Solver
+Vikram Desai,vikram.desai@example.com,+91 78901 23456,QuantumSoft,SDE Intern,"Ahmedabad, India","[""C++"",""DSA"",""Git"",""GitHub"",""Problem Solving""]",
+Elena Petrova,elena.petrova@example.com,+90 533 123 4567,Eurasia Web,Web Developer,"Istanbul, Turkey","[""HTML"",""CSS"",""JavaScript"",""Next.js"",""React.js""]",Web Developer 🚀 | Open Source Enthusiast 💻 | Learning New Things Every Day ✨
+Lucas Rivera,lucas.rivera@example.com,+1 305-555-9812,DataEdge,Business Analyst,"Miami, USA","[""Excel"",""Power BI"",""SQL"",""Market Research"",""Data Visualization""]",
+Neha Singh,neha.singh@example.com,+91 98230 44551,InnoByte Labs,Data Scientist,"Delhi, India","[""Python"",""Pandas"",""Seaborn"",""Machine Learning"",""Statistics""]",
+Rudra Kulkarni,rudra.kulkarni@example.com,+91 90909 55122,CodeNova,Frontend Intern,"Pune, Maharashtra, India","[""HTML"",""CSS"",""JavaScript"",""React.js""]",
+Aisha Qureshi,aisha.qureshi@example.com,+91 77889 22011,CyberSphere,Security Analyst,"Mumbai, India","[""Networking"",""Linux"",""Risk Assessment"",""Python""]",
+Harshit Purohit,harshit.purohit@example.com,+91 73500 77119,Lightwave AI,ML Intern,"Bengaluru, India","[""Python"",""Numpy"",""TensorFlow"",""Deep Learning""]",
+Sara Dsouza,sara.dsouza@example.com,+91 98119 33781,DesignCraft,UI Designer,"Goa, India","[""Figma"",""UI Design"",""Color Theory""]",
+Vedant Ghosh,vedant.ghosh@example.com,+91 77011 55220,DataNest,Cloud Intern,"Kolkata, India","[""AWS"",""Linux"",""Docker""]",
+Manya Jain,manya.jain@example.com,+91 88771 12003,MedTech AI,AI Intern,"Indore, India","[""Python"",""LLMs"",""RAG""]",
+Arav Patel,arav.patel@example.com,+91 99776 11290,QuantumSoft,SDE Intern,"Ahmedabad, India","[""C++"",""DSA"",""Git""]",
+Zara Hussain,zara.hussain@example.com,+44 7700 900123,Eurasia Web,Web Designer,"London, UK","[""HTML"",""CSS"",""Figma""]",
+Leo Martins,leo.martins@example.com,+1 213-555-7782,DataEdge,Data Analyst,"Los Angeles, USA","[""Excel"",""SQL"",""Power BI""]",
+Vihaan Reddy,vihaan.reddy@example.com,+91 99882 33112,InnoByte Labs,AI Research Assistant,"Hyderabad, India","[""Python"",""Transformers"",""Machine Learning""]",
+Tanish Gupta,tanish.gupta@example.com,+91 74400 22119,CodeNova,React Developer,"Jaipur, India","[""React.js"",""JavaScript"",""TailwindCSS""]",
+Ritika Wagle,ritika.wagle@example.com,+91 88012 66221,CyberSphere,Network Engineer,"Pune, Maharashtra, India","[""Linux"",""Wireshark"",""Network Security""]",
+Atharv Joshi,atharv.joshi@example.com,+91 75990 88212,Lightwave AI,Data Engineer,"Mumbai, India","[""Python"",""ETL"",""Airflow"",""SQL""]",
+Kiara Fernandes,kiara.fernandes@example.com,+91 98100 66331,DesignCraft,Graphic Designer,"Goa, India","[""Photoshop"",""Illustrator"",""Branding""]",
+Om Trivedi,om.trivedi@example.com,+91 79812 12091,DataNest,DevOps Intern,"Nagpur, India","[""Docker"",""GitHub Actions"",""Linux""]",
+Maria Gomes,maria.gomes@example.com,+91 88991 11776,MedTech AI,ML Research Assistant,"Chennai, India","[""Python"",""Deep Learning"",""Model Evaluation""]",
+Nikhil Chouhan,nikhil.chouhan@example.com,+91 90011 22387,QuantumSoft,Backend Intern,"Bhopal, India","[""Node.js"",""Express.js"",""MongoDB""]",
+Sofia Emin,sofia.emin@example.com,+90 555 781 2233,Eurasia Web,Full Stack Intern,"Ankara, Turkey","[""JavaScript"",""React.js"",""Node.js""]",
+Ethan Perez,ethan.perez@example.com,+1 312-555-6612,DataEdge,Business Intelligence Analyst,"Chicago, USA","[""SQL"",""Power BI"",""Dashboards""]",

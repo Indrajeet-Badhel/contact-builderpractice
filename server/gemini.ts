@@ -1,3 +1,4 @@
+// server/gemini.ts
 import * as fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import fetch from "node-fetch";
@@ -19,15 +20,14 @@ export interface ExtractedContactData {
   bio?: string;
   education?: string[];
   experience?: Array<{
-    company: string;
-    title: string;
-    duration: string;
+    company?: string;
+    title?: string;
+    duration?: string;
   }>;
 }
 
-/* ------------------------------------------
-   DOCX → PDF Converter 
-------------------------------------------- */
+/** ---------- Utilities ---------- */
+
 async function convertDocxToPdf(docxPath: string): Promise<string> {
   const outPath = docxPath.replace(/\.docx$/i, "") + ".converted.pdf";
 
@@ -37,147 +37,175 @@ async function convertDocxToPdf(docxPath: string): Promise<string> {
     const browser = await puppeteer.launch({
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
-
     const page = await browser.newPage();
-    await page.setContent(html);
+    await page.setContent(html, { waitUntil: "networkidle0" });
     await page.pdf({ path: outPath, format: "A4" });
     await browser.close();
 
-    console.log("DOCX → PDF conversion OK:", outPath);
+    console.log("DOCX → PDF conversion successful:", outPath);
     return outPath;
   } catch (err) {
-    console.error("DOCX conversion failed, using original file:", err);
+    console.warn("DOCX conversion failed (falling back to original):", err);
     return docxPath;
   }
 }
 
-/* ------------------------------------------
-   MAIN DOCUMENT EXTRACTION FUNCTION
-   (THIS IS THE ONLY PART YOU REPLACE)
-------------------------------------------- */
+async function withRetries<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  initialWait = 1000
+): Promise<T> {
+  let attempt = 0;
+  let wait = initialWait;
+  while (true) {
+    attempt++;
+    try {
+      return await fn();
+    } catch (err: any) {
+      if (attempt >= retries) throw err;
+      console.warn(`Attempt ${attempt} failed. Retrying in ${wait}ms.`, err?.message || err);
+      await new Promise((r) => setTimeout(r, wait));
+      wait *= 1.8; // exponential-ish backoff
+    }
+  }
+}
+
+/** ---------- Main functions ---------- */
+
+/**
+ * Extract structured contact data from a file (PDF/DOCX/image/text).
+ * Ensures MIME detection and DOCX → PDF conversion for Gemini stability.
+ */
 export async function extractContactFromDocument(
   documentPath: string,
   mimeType: string,
   apiKey: string
 ): Promise<ExtractedContactData> {
+  if (!apiKey) throw new Error("Gemini API key required");
+
   const ai = new GoogleGenAI({ apiKey });
 
   try {
-    // Step 1 — Fix MIME type
-    let detectedMime =
-      mimeType ||
-      mime.lookup(documentPath) ||
-      (documentPath.endsWith(".docx")
-        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        : "");
-
+    // 1) Detect mime if missing
+    let detectedMime = mimeType || mime.lookup(documentPath) || "";
     if (!detectedMime) {
-      console.warn("⚠ No MIME type detected → defaulting to PDF");
+      // If extension implies docx, set that; otherwise default to pdf (safer)
+      if (documentPath.endsWith(".docx")) {
+        detectedMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      } else {
+        detectedMime = "application/pdf";
+      }
+      console.warn("Detected/forced MIME:", detectedMime);
+    }
+
+    // 2) If docx -> convert to PDF for compatibility
+    let pathToSend = documentPath;
+    if (/\.docx$/i.test(documentPath)) {
+      pathToSend = await convertDocxToPdf(documentPath);
       detectedMime = "application/pdf";
     }
 
-    // Step 2 — Convert DOCX → PDF for Gemini stability
-    if (documentPath.endsWith(".docx")) {
-      console.log("Converting DOCX to PDF...");
-      documentPath = await convertDocxToPdf(documentPath);
-      detectedMime = "application/pdf";
-    }
+    // 3) Read file bytes
+    const fileBytes = fs.readFileSync(pathToSend);
 
-    // Step 3 — Load file
-    const fileBytes = fs.readFileSync(documentPath);
+    const systemPrompt = `You are an expert at extracting structured contact information from documents.
+Return valid JSON only. Fields to extract (if present): name, email, phone, company, title, location, skills (array),
+linkedinUrl, githubUrl, websiteUrl, bio, education (array), experience (array of {company,title,duration}).`;
 
-    const systemPrompt = `
-You are an expert at extracting structured contact information from documents.
-Extract:
-name, email, phone, company, title, location, skills[], linkedinUrl, githubUrl,
-websiteUrl, bio, education[], experience[].
-Return ONLY valid JSON.
-`.trim();
-
-    // Step 4 — Call Gemini
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      config: {
-        responseMimeType: "application/json",
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                data: fileBytes.toString("base64"),
-                mimeType: detectedMime,
-              },
-            },
-            { text: systemPrompt },
-          ],
+    // 4) Wrap the call in retries (Gemini Free/unstable can return intermittent errors)
+    const response = await withRetries(async () => {
+      return await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        config: {
+          responseMimeType: "application/json",
         },
-      ],
-    });
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                inlineData: {
+                  data: fileBytes.toString("base64"),
+                  mimeType: detectedMime,
+                },
+              },
+              { text: systemPrompt },
+            ],
+          },
+        ],
+      });
+    }, 3, 1200);
 
-    const raw = response.text;
-    if (!raw) throw new Error("Empty response from Gemini");
+    const rawJson = (response as any).text;
+    if (!rawJson) throw new Error("Empty response from Gemini");
 
-    return JSON.parse(raw);
+    const parsed: ExtractedContactData = JSON.parse(rawJson);
+    return parsed;
   } catch (err: any) {
-    console.error("Gemini extraction error:", err);
-    throw new Error("Failed to extract contact: " + err.message);
+    console.error("Error extracting contact data:", err);
+    throw new Error(`Failed to extract contact data: ${err?.message || String(err)}`);
   }
 }
 
-/* ------------------------------------------
-   WEBSITE EXTRACTION (unchanged)
-------------------------------------------- */
-export async function extractContactFromWebsite(url: string, apiKey: string) {
+/**
+ * Extract contact info from a website URL (scrapes HTML and queries Gemini).
+ */
+export async function extractContactFromWebsite(url: string, apiKey: string): Promise<ExtractedContactData> {
+  if (!apiKey) throw new Error("Gemini API key required");
   const ai = new GoogleGenAI({ apiKey });
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch URL: ${res.status}`);
+  try {
+    // fetch page with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const resp = await fetch(url, { signal: (controller.signal as any) });
+    clearTimeout(timeout);
 
-  let html = await res.text();
-  if (html.length > 15000) html = html.slice(0, 15000);
+    if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
 
-  const systemPrompt = `
-Extract structured contact info from this HTML page.
-Return valid JSON only.
-`.trim();
+    let html = await resp.text();
+    if (html.length > 15000) html = html.slice(0, 15000);
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    config: { responseMimeType: "application/json" },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: systemPrompt },
-          { text: `URL: ${url}\n\nHTML:\n${html}` },
-        ],
-      },
-    ],
-  });
+    const prompt = `You are an expert at extracting structured contact information from web pages.
+Return valid JSON only with the following fields if present: name, email, phone, company, title, location, skills[], linkedinUrl, githubUrl, websiteUrl, bio, education[], experience[].
 
-  const raw = response.text;
-  if (!raw) throw new Error("Empty response");
+Page URL: ${url}
+HTML: ${html}`;
 
-  const obj = JSON.parse(raw);
-  if (!obj.websiteUrl) obj.websiteUrl = url;
+    const response = await withRetries(() => ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: { responseMimeType: "application/json" },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    }), 3, 1200);
 
-  return obj;
+    const raw = (response as any).text;
+    if (!raw) throw new Error("Empty response from Gemini (website)");
+
+    const parsed: ExtractedContactData = JSON.parse(raw);
+    if (!parsed.websiteUrl) parsed.websiteUrl = url;
+    return parsed;
+  } catch (err: any) {
+    console.error("Error extracting contact from website:", err);
+    throw new Error(`Failed to extract contact from website: ${err?.message || String(err)}`);
+  }
 }
 
-/* ------------------------------------------
-   SEMANTIC SEARCH (unchanged)
-------------------------------------------- */
-export async function semanticSearchContacts(
-  query: string,
-  contacts: Array<any>,
-  apiKey: string
-): Promise<Array<any>> {
+/**
+ * Semantic search contacts: returns ordered contact objects (not just IDs).
+ * If Gemini fails, falls back to returning provided contacts.
+ */
+export async function semanticSearchContacts(query: string, contacts: any[], apiKey: string): Promise<any[]> {
+  if (!apiKey) {
+    console.warn("No Gemini key for semantic search → returning input contacts");
+    return contacts;
+  }
+
   const ai = new GoogleGenAI({ apiKey });
 
-  const body = JSON.stringify(
-    contacts.map((c) => ({
+  try {
+    if (!contacts || contacts.length === 0) return [];
+
+    const compact = contacts.map((c) => ({
       id: c.id,
       name: c.name,
       title: c.title,
@@ -185,27 +213,28 @@ export async function semanticSearchContacts(
       skills: c.skills,
       location: c.location,
       bio: c.bio,
-    }))
-  );
+    }));
 
-  const prompt = `
-Rank the following contacts by relevance to the query: "${query}".
-Return JSON array of IDs only.
-Contacts:
-${body}
-`;
+    const prompt = `You are an assistant that ranks contacts by relevance to a query.
+Query: ${query}
+Contacts: ${JSON.stringify(compact, null, 2)}
+Return a JSON array of contact IDs in order of relevance. Example: ["id1","id2"].
+If none match, return [].`;
 
-  const res = await ai.models.generateContent({
-    model: "gemini-2.0-flash-exp",
-    config: { responseMimeType: "application/json" },
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-  });
+    const response = await withRetries(() => ai.models.generateContent({
+      model: "gemini-2.0-flash-exp",
+      config: { responseMimeType: "application/json" },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    }), 2, 800);
 
-  const raw = res.text;
-  if (!raw) return contacts;
+    const raw = (response as any).text;
+    if (!raw) return contacts;
 
-  const ids: Array<any> = JSON.parse(raw);
-  return ids
-    .map((id: any) => contacts.find((c: any) => c.id === id))
-    .filter(Boolean) as Array<any>;
+    const ids: string[] = JSON.parse(raw);
+    const ordered = ids.map((id) => contacts.find((c) => c.id === id)).filter(Boolean);
+    return ordered.length ? ordered : contacts;
+  } catch (err) {
+    console.error("Semantic search error (falling back):", err);
+    return contacts;
+  }
 }

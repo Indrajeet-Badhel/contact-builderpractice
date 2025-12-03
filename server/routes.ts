@@ -20,6 +20,8 @@ import fs from "fs";
 import pLimit from "p-limit";
 import mime from "mime-types";
 
+
+
 import { 
   apiRateLimiter, 
   authRateLimiter, 
@@ -306,16 +308,20 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/zip",
-      "application/x-zip-compressed",
-      "image/png",
-      "image/jpeg",
-      "image/jpg",
-      "text/plain"
-    ];
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // <-- .xlsx
+  "text/csv", // <-- CSV support
+
+  "application/zip",
+  "application/x-zip-compressed",
+
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "text/plain"
+];
+
     
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -699,6 +705,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!file) {
           return res.status(400).json({ message: "No file uploaded" });
         }
+// -----------------------------------------
+// CASE 0: Excel sheet upload (.xlsx / .csv)
+// -----------------------------------------
+if (
+  file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+  file.mimetype === "text/csv"
+) {
+  console.log("Excel file detected → parsing contacts...");
+
+  try {
+    const buffer = fs.readFileSync(file.path);
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+
+    const createdContacts: any[] = [];
+
+    for (const row of rows) {
+      const name =
+        row.name || row.Name || row.fullname || row.FullName || "Unknown";
+
+      const email = row.email || row.Email || null;
+      const phone = row.phone || row.Phone || null;
+      const company = row.company || row.Company || null;
+      const title = row.title || row.Title || null;
+      const website = row.website || row.Website || null;
+
+      const skills = row.skills
+        ? String(row.skills)
+            .split(",")
+            .map((s: string) => s.trim())
+        : [];
+
+      const contact = await storage.createContact({
+        userId,
+        name,
+        email,
+        phone,
+        company,
+        title,
+        skills,
+        websiteUrl: website,
+        extractedData: { excelRow: row },
+        sources: [{ source: "excel", url: "", verified: true }],
+        notes: "Imported from Excel",
+      });
+
+      createdContacts.push(contact);
+    }
+
+    return res.json({
+      success: true,
+      contactsCreated: createdContacts.length,
+      contacts: createdContacts,
+    });
+  } catch (err) {
+    console.error("Excel import failed:", err);
+    return res.status(500).json({ message: "Failed to import Excel file" });
+  }
+}
 
         // CASE 1: ZIP file → extract & process each file
         if (
