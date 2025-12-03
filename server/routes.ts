@@ -58,6 +58,48 @@ const limit = pLimit(1);
 // -----------------------------------------
 
 // Simple retry helper for async tasks (attempts, with optional delay)
+
+function cleanSkills(skills: any): string[] {
+  if (!skills) return [];
+
+  let list = skills;
+
+  // helper: decode common HTML entities (handles double-encoded values like &amp;quot;)
+  function decodeHtmlEntities(str: string): string {
+    if (!str) return "";
+    // decode common patterns; order matters (handle &amp;quot; first)
+    return String(str)
+      .replace(/&amp;quot;/g, '\"')
+      .replace(/&quot;/g, '\"')
+      .replace(/&amp;#34;/g, '\"')
+      .replace(/&#34;/g, '\"')
+      .replace(/&amp;#39;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;amp;/g, '&')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  // If skills came as JSON string → try to decode + parse them
+  if (typeof list === "string") {
+    try {
+      const decoded = decodeHtmlEntities(list);
+      list = JSON.parse(decoded);
+    } catch {
+      // Split fallback (decode each piece)
+      list = list
+        .split(/[,;\n\r]+/) // allow commas, semicolons, newlines
+        .map((s: string) => decodeHtmlEntities(s).trim());
+    }
+  }
+
+  // Normalize each entry and strip stray brackets/quotes
+  return (Array.isArray(list) ? list : [list])
+    .map((s: any) => decodeHtmlEntities(String(s || "")).replace(/[\[\]\"]/g, "").trim())
+    .filter(Boolean);
+}
+
 async function retry<T>(
   fn: () => Promise<T>, 
   attempts = 3, 
@@ -714,15 +756,40 @@ if (
   file.mimetype === "text/csv"
 ) {
   console.log("Excel file detected → parsing contacts...");
+    let excelDocument: any = undefined;
 
-  try {
+    try {
     const buffer = fs.readFileSync(file.path);
+
+    // Create a document record so the UI shows an upload card for Excel imports
+    try {
+      excelDocument = await storage.createDocument({
+        userId,
+        filename: file.filename,
+        originalName: file.originalname || file.originalName || file.originalname || 'excel_upload',
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        filePath: file.path,
+        status: 'processing',
+        extractionProgress: 0,
+      });
+    } catch (e) {
+      console.warn('Could not create document record for Excel import', e);
+      excelDocument = undefined;
+    }
     const workbook = XLSX.read(buffer, { type: "buffer" });
 
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
     const createdContacts: any[] = [];
+
+    // Fetch optional GitHub key for enrichment and current contacts for dedupe checks
+    const githubKey = await storage
+      .getApiKeyByService(userId, "github", "api_key")
+      .catch(() => null);
+
+    let existingContacts = await storage.getContacts(userId);
 
     for (const row of rows) {
       const name =
@@ -734,40 +801,142 @@ if (
       const title = row.title || row.Title || null;
       const website = row.website || row.Website || null;
 
-      const skills = row.skills
-        ? String(row.skills)
-            .split(",")
-            .map((s: string) => s.trim())
-        : [];
-
-      const contact = await storage.createContact({
-        userId,
+      // Build a minimal extracted object from the Excel row
+      const extracted: any = {
         name,
         email,
         phone,
         company,
         title,
-        skills,
         websiteUrl: website,
+        skills: row.skills || row.Skills || row.skill || null,
+      };
+
+      // Enrich the row (conservative to avoid aggressive name-only searches)
+      const enriched = await enrichContact(extracted, githubKey?.encryptedValue, { conservative: true });
+
+      // Check duplicates against existing contacts
+      const possibleDuplicate = existingContacts.find((c) =>
+        areLikelySamePerson(
+          {
+            name: enriched.name || extracted.name,
+            email: enriched.email || extracted.email,
+            githubUrl: enriched.githubUrl || extracted.githubUrl,
+            linkedinUrl: enriched.linkedinUrl || extracted.linkedinUrl,
+            websiteUrl: enriched.websiteUrl || extracted.websiteUrl,
+          },
+          {
+            name: c.name,
+            email: c.email,
+            githubUrl: c.githubUrl,
+            linkedinUrl: c.linkedinUrl,
+            websiteUrl: c.websiteUrl,
+          }
+        )
+      );
+
+      const baseSources: any[] = [
+        { source: "excel", url: "", verified: true },
+        ...(enriched.sources || []),
+      ];
+
+      if (possibleDuplicate) {
+        // merge sources and skills, update existing contact
+        const mergedSources = mergeSources(
+          (possibleDuplicate.sources as any[]) || [],
+          baseSources
+        );
+
+        const incomingSkills = cleanSkills(enriched.skills || extracted.skills || []);
+        const mergedSkills = mergeSkills(possibleDuplicate.skills || [], incomingSkills);
+
+        const updated = await storage.updateContact(possibleDuplicate.id, userId, {
+          name: possibleDuplicate.name || enriched.name || extracted.name || "Unknown",
+          email: possibleDuplicate.email || enriched.email || extracted.email,
+          phone: possibleDuplicate.phone || enriched.phone || extracted.phone,
+          company: possibleDuplicate.company || enriched.company || extracted.company,
+          title: possibleDuplicate.title || enriched.title || extracted.title,
+          location: possibleDuplicate.location || enriched.location || extracted.location,
+          skills: mergedSkills,
+          linkedinUrl: possibleDuplicate.linkedinUrl || enriched.linkedinUrl || extracted.linkedinUrl,
+          githubUrl: possibleDuplicate.githubUrl || enriched.githubUrl || extracted.githubUrl,
+          websiteUrl: possibleDuplicate.websiteUrl || enriched.websiteUrl || extracted.websiteUrl || website,
+          bio: possibleDuplicate.bio || enriched.bio || extracted.bio,
+          confidenceScore: enriched.confidenceScore ?? possibleDuplicate.confidenceScore ?? 0.85,
+          sources: mergedSources,
+          enrichedData: { ...(possibleDuplicate.enrichedData as any), ...enriched },
+          extractedData: { excelRow: row },
+        });
+
+        createdContacts.push(updated);
+        // refresh existingContacts so subsequent rows can detect duplicates against the updated contact
+        existingContacts = existingContacts.map((c) => (c.id === updated.id ? updated : c));
+        continue;
+      }
+
+      // No duplicate → create
+      const skillsClean = cleanSkills(enriched.skills || extracted.skills || []);
+
+      const contact = await storage.createContact({
+        userId,
+        name: enriched.name || extracted.name || "Unknown",
+        email: enriched.email || extracted.email,
+        phone: enriched.phone || extracted.phone,
+        company: enriched.company || extracted.company,
+        title: enriched.title || extracted.title,
+        location: enriched.location || extracted.location,
+        skills: skillsClean,
+        linkedinUrl: enriched.linkedinUrl || extracted.linkedinUrl,
+        githubUrl: enriched.githubUrl || extracted.githubUrl,
+        websiteUrl: enriched.websiteUrl || extracted.websiteUrl || website,
+        bio: enriched.bio || extracted.bio,
+        confidenceScore: enriched.confidenceScore ?? 0.85,
+        sources: baseSources,
         extractedData: { excelRow: row },
-        sources: [{ source: "excel", url: "", verified: true }],
+        enrichedData: enriched,
         notes: "Imported from Excel",
       });
 
       createdContacts.push(contact);
+      existingContacts.push(contact);
+    }
+
+    // Mark document as completed (if created) so the client shows it as processed
+    try {
+      if (excelDocument && excelDocument.id) {
+        await storage.updateDocument(excelDocument.id, userId, {
+          status: 'completed',
+          extractionProgress: 100,
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to update excel document status:', e);
     }
 
     return res.json({
       success: true,
+      document: excelDocument,
       contactsCreated: createdContacts.length,
       contacts: createdContacts,
     });
   } catch (err) {
     console.error("Excel import failed:", err);
+    // mark document failed if we created one
+    try {
+      if (typeof excelDocument !== 'undefined' && excelDocument && excelDocument.id) {
+        await storage.updateDocument(excelDocument.id, userId, {
+          status: 'failed',
+          extractionProgress: 0,
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to mark excel document as failed:', e);
+    }
+
     return res.status(500).json({ message: "Failed to import Excel file" });
   }
 }
-
+    
         // CASE 1: ZIP file → extract & process each file
         if (
           file.mimetype === "application/zip" || 
@@ -1320,7 +1489,7 @@ async function processDocumentExtraction(
       company: enrichedData.company,
       title: enrichedData.title,
       location: enrichedData.location,
-      skills: enrichedData.skills || [],
+      skills: cleanSkills(enrichedData.skills) || [],
       linkedinUrl: enrichedData.linkedinUrl,
       githubUrl: enrichedData.githubUrl,
       websiteUrl: enrichedData.websiteUrl,
