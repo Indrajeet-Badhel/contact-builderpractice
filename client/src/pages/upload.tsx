@@ -83,6 +83,28 @@ export default function UploadPage() {
     }
   });
 
+  // Retry extraction mutation
+  const retryMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      return await apiRequest('POST', `/api/documents/${documentId}/retry`, undefined);
+    },
+    onSuccess: (data, documentId) => {
+      toast({
+        title: "Retrying Extraction",
+        description: "Re-extracting contact data...",
+      });
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Retry Failed",
+        description: error.message || "Could not retry extraction. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Show toast when extraction completes or fails
   useEffect(() => {
     documents.forEach(doc => {
@@ -287,21 +309,19 @@ export default function UploadPage() {
                                 size="sm" 
                                 variant="outline"
                                 onClick={() => {
-                                  toast({
-                                    title: "Retry Coming Soon",
-                                    description: "The retry feature will be available soon. Please try uploading the document again.",
-                                  });
+                                  retryMutation.mutate(document.id);
                                 }}
+                                disabled={retryMutation.isPending}
                                 data-testid={`button-retry-${document.id}`}
                               >
-                                <RefreshCw className="w-4 h-4 mr-2" />
-                                Retry Extraction
+                                <RefreshCw className={`w-4 h-4 mr-2 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                                {retryMutation.isPending ? 'Retrying...' : 'Retry Extraction'}
                               </Button>
                             </div>
                           )}
                           {document.status === 'completed' && (
                             <div className="mt-3 pt-3 border-t flex gap-2">
-                              <Link href="/">
+                              <Link href="/dashboard">
                                 <Button size="sm" variant="default" data-testid="button-view-dashboard">
                                   View Contact
                                   <ArrowRight className="w-4 h-4 ml-2" />

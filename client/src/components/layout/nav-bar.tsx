@@ -1,8 +1,9 @@
+// client/src/components/layout/nav-bar.tsx
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LayoutDashboard, Upload, LogOut, Users } from "lucide-react";
+import { LayoutDashboard, Upload, LogOut } from "lucide-react";
 
 export function NavBar() {
   const [location] = useLocation();
@@ -15,11 +16,7 @@ export function NavBar() {
       <div className="container max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-6">
           <Link href="/" className="cursor-pointer flex items-center gap-3 font-black text-xl font-['Space_Grotesk']" data-testid="link-home">
-            {/* NEW: Professional gradient logo */}
-            <div className="relative w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/20">
-              <Users className="w-5 h-5 text-white" strokeWidth={2.5} />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full border-2 border-background shadow-sm"></div>
-            </div>
+            <img src="/logo.png" alt="Contact Builder" className="w-10 h-10" />
             <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               Contact Builder
             </span>
