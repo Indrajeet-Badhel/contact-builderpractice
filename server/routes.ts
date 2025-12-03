@@ -19,6 +19,7 @@ import AdmZip from "adm-zip";
 import fs from "fs";
 import pLimit from "p-limit";
 import mime from "mime-types";
+import { isAdmin } from "./security/adminAuth";
 
 
 
@@ -1084,6 +1085,29 @@ if (
   // -------------------------------------
   // ADMIN ROUTES
   // -------------------------------------
+  app.get(
+  "/api/admin/status",
+  isAuthenticated,
+  apiRateLimiter,
+  async (req: any, res) => {
+    try {
+      const user = req.user;
+      const userEmail = user.email || (req.session as any)?.user?.email;
+      
+      // Check if user is admin
+      const adminStatus = {
+        isAdmin: isAdmin(userEmail),
+        email: userEmail,
+      };
+      
+      res.json(adminStatus);
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+      res.status(500).json({ message: "Failed to check admin status" });
+    }
+  }
+);
+
   app.get(
     "/api/admin/contacts", 
     isAuthenticated, 

@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Contact } from "@shared/schema";
 import { motion } from "framer-motion";
+import { Shield } from "lucide-react";
 
 const getSourceUrl = (contact: Contact, type: string): string | undefined => {
   const sources = (contact.sources as any) || [];
@@ -57,9 +58,20 @@ const getSourceUrl = (contact: Contact, type: string): string | undefined => {
   return match?.url;
 };
 
+function useIsAdmin() {
+  const { data: adminStatus } = useQuery<{ isAdmin: boolean }>({
+    queryKey: ['/api/admin/status'],
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  
+  return adminStatus?.isAdmin || false;
+}
+
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [newContactUrl, setNewContactUrl] = useState("");   
+  const [newContactUrl, setNewContactUrl] = useState("");
+  const isAdmin = useIsAdmin();   
 
   // ===== AI SEARCH STATES =====
   const [isSearching, setIsSearching] = useState(false);
@@ -325,13 +337,26 @@ const filteredContacts =
               </p>
             </div>
             <div className="flex gap-2">
+              {/* Admin Button - Only visible to admins */}
+              {isAdmin && (
+                <Button 
+                  variant="outline"
+                  onClick={() => (window.location.href = "/admin/contacts")}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Admin Dashboard
+                </Button>
+              )}
+              
               <Button 
-    variant="default" 
-    onClick={() => (window.location.href = "/graph")}
-    className="bg-blue-600 hover:bg-blue-700 text-white"
-  >
-    Knowledge Graph
-  </Button>
+                variant="default" 
+                onClick={() => (window.location.href = "/graph")}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Knowledge Graph
+              </Button>
+              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" data-testid="button-export">
