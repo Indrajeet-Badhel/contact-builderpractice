@@ -9,6 +9,8 @@
 
 **Contact Builder** is an AI-powered contact intelligence platform that transforms resumes, business cards, and documents into comprehensive, verified contact profiles. Using advanced NLP, OSINT, and knowledge graph technology, it extracts, enriches, and organizes contact data from public sources, creating CRM-ready profiles with confidence scoring.
 
+It is built with a full **TypeScript + React + Node/Express + Drizzle ORM** stack.
+
 ### Key Features:
 **AI-Powered Document Processing** - Extracts data from PDFs, DOCX, images, and text files
 **Multi-Source Enrichment** - Aggregates data from GitHub, ORCID, Stack Overflow, Wikipedia, and more
@@ -18,6 +20,28 @@
 **CRM-Ready Exports** - Export to Excel, CSV, JSON, or vCard formats
 **Privacy-First** - GDPR-compliant, only accesses public data sources
 **Interactive Visualization** - 2D and 3D contact network graphs
+
+### **User Features**
+- Upload PDF, DOCX, image files
+- Extract contact fields (name, phone, email, organization, etc.)
+- View enriched contact details
+- Preview & edit extracted contacts
+- Visualize contacts through interactive graphs
+- Manage personal profile & logout
+
+### **Admin Features**
+- Log in with admin credentials
+- View/monitor processed contacts
+- Trace and audit data extraction logs
+- Manage confidence scoring & enrichment workflows
+
+### **AI & Automation Features**
+- Text extraction via Gemini API  
+- NLP-based enrichment (HuggingFace models)  
+- Contact merging and deduplication  
+- Confidence score improvements  
+- Semantic search on contacts  
+- Email import (experimental)
 
 ## Tech Stack
 
@@ -86,6 +110,59 @@
    http://localhost:5000
    ```
 
+---
+
+## API Routes
+
+| Route              | Method | Description                       |
+| ------------------ | ------ | --------------------------------- |
+| `/api/upload`      | POST   | Upload document & extract contact |
+| `/api/search`      | GET    | Semantic search contacts          |
+| `/api/dashboard`      | GET   | View all contacts for user              |
+| `/api/logout`      | GET    | Destroy session                   |
+| `/api/admin/contacts`    | GET    | Fetch all contacts from all users              |
+
+---
+
+## Graph Features
+
+Two visualization components:
+
+* **`ContactGraph.tsx`**
+* **`Contact2Graph.tsx`**
+
+Based on Cytoscape:
+
+* Node types: Person, Organization, Email, Phone
+* Displays enriched links and relationships
+* Interactive panning, zooming, node expansion
+
+---
+
+## Security Layer
+
+The backend includes:
+
+* AES-256-GCM encryption (`encryption.ts`)
+* Rate limiting (`rateLimiter.ts`)
+* Input validation (`validation.ts`)
+* Admin auth (`adminAuth.ts`)
+* Audit logging (`auditLogger.ts`)
+* Custom security headers (`header.ts`)
+
+---
+
+## Storage Layer
+
+`storage.ts` handles:
+
+* File uploading
+* Directory management
+* Document extraction
+* Caching extracted data
+
+---
+
 ## Usage
 
 ### Basic Workflow
@@ -106,18 +183,15 @@ contact-builderpractice/
 │   │   ├── components/       # Reusable UI components
 │   │   ├── hooks/            # Custom React hooks
 │   │   ├── pages/            # Page components
-│   │   ├── lib/              # Utility functions
-│   │   └── assets/           # Static assets
+│   │   └── lib/              # Utility functions
 │   ├── index.html            # Entry HTML file
 │   └── vite.config.ts        # Vite configuration
 ├── server/                  # Backend Express server
+│   ├── security/             # security handlers
 │   ├── routes/               # API route handlers
-│   ├── services/             # Business logic services
-│   ├── middleware/           # Express middleware
 │   └── index.ts              # Server entry point
 ├── shared/                  # Shared types and schemas
 │   └── schema.ts             # Database schema definitions
-├── migrations/              # Database migrations
 ├── public/                  # Static files
 ├── .env                     # Environment variables
 ├── package.json             # Project dependencies
