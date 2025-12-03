@@ -203,7 +203,7 @@ router.get("/callback", async (req, res) => {
       // await saveAccessTokenTemporarily(userId, tokens.access_token, tokens.expiry_date)
     }
 
-    return res.redirect("/graph");
+    return res.redirect("/dashboard");
   } catch (err: any) {
     console.error("gmail callback error:", err);
     return res.status(500).send("Gmail callback error: " + (err.message || String(err)));

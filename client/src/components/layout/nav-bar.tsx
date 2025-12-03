@@ -24,18 +24,6 @@ export function NavBar() {
 
           <div className="hidden md:flex items-center gap-1">
             <Link 
-              href="/" 
-              className={`cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-3 ${
-                isActive('/') 
-                  ? 'bg-secondary text-secondary-foreground hover:bg-secondary/80' 
-                  : 'hover:bg-accent hover:text-accent-foreground'
-              }`}
-              data-testid="nav-dashboard"
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
-            </Link>
-            <Link 
               href="/upload" 
               className={`cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-3 ${
                 isActive('/upload') 

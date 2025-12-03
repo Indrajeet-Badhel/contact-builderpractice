@@ -47,9 +47,9 @@ import {
   logSecurityEvent, 
   SecurityEventType 
 } from "./security/auditLogger";
-
 import { requireAdmin } from "./security/adminAuth";
 import { encrypt, decrypt } from "./security/encryption";
+
 
 const limit = pLimit(1); 
 
@@ -1311,6 +1311,57 @@ if (
       }
     }
   );
+  
+    app.delete(
+      "/api/admin/contacts/:id",
+      isAuthenticated,
+      requireAdmin,
+      adminRateLimiter,
+      async (req: any, res) => {
+        try {
+          const contactId = req.params.id as string;
+
+          // Optional: log security event
+          logSecurityEvent(SecurityEventType.RESOURCE_DELETED, req, {
+            resourceType: "contact",
+            resourceId: contactId,
+            scope: "admin",
+          });
+
+          await db.delete(contacts).where(eq(contacts.id, contactId));
+
+          return res.json({ success: true });
+        } catch (error) {
+          console.error("Error deleting contact as admin:", error);
+          res.status(500).json({ message: "Failed to delete contact" });
+        }
+      }
+    );
+
+    app.patch(
+      "/api/admin/contacts/:id",
+      isAuthenticated,
+      requireAdmin,
+      adminRateLimiter,
+      async (req: any, res) => {
+        try {
+          const contactId = req.params.id;
+          const updates = req.body;
+
+          const updated = await db
+            .update(contacts)
+            .set(updates)
+            .where(eq(contacts.id, contactId))
+            .returning();
+
+          res.json(updated[0]);
+
+        } catch (error) {
+          console.error("Admin update failed:", error);
+          res.status(500).json({ message: "Failed to update contact" });
+        }
+      }
+    );
 
   app.post(
     "/api/admin/contacts/search", 

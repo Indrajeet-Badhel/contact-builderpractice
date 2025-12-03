@@ -39,6 +39,7 @@ import {
   Code,
   FileSpreadsheet,
   FileText,
+  Check
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -49,6 +50,7 @@ import {
 import type { Contact } from "@shared/schema";
 import { motion } from "framer-motion";
 import { Shield } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const getSourceUrl = (contact: Contact, type: string): string | undefined => {
   const sources = (contact.sources as any) || [];
@@ -87,7 +89,110 @@ export default function Dashboard() {
     queryKey: ['/api/contacts'],
   });
 
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
 
+  type ExportFormat = "json" | "csv" | "excel";
+
+  const handleExportSelected = (format: ExportFormat) => {
+    const selected = filteredContacts.filter((c) => selectedContacts.has(c.id));
+
+    if (selected.length === 0) {
+      toast({
+        title: "No contacts selected",
+        description: "Select contacts first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Company",
+      "Title",
+      "Location",
+      "Bio",
+      "Skills",
+      "LinkedIn URL",
+      "GitHub URL",
+      "ORCID URL",
+      "Website URL",
+      "Confidence Score",
+      "Created At",
+    ];
+
+    const rows = selected.map((c) => [
+      c.name || "",
+      c.email || "",
+      c.phone || "",
+      c.company || "",
+      c.title || "",
+      c.location || "",
+      c.bio || "",
+      (c.skills || []).join(", "),
+      c.linkedinUrl || "",
+      c.githubUrl || "",
+      (c as any).orcidUrl || "",
+      c.websiteUrl || "",
+      c.confidenceScore ? `${(c.confidenceScore * 100).toFixed(0)}%` : "",
+      c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "",
+    ]);
+
+    let blob: Blob;
+    let filename: string;
+
+    if (format === "json") {
+      blob = new Blob([JSON.stringify(selected, null, 2)], {
+        type: "application/json",
+      });
+      filename =
+        selected.length === 1
+          ? `${(selected[0].name || "contact").replace(/\s+/g, "_")}.json`
+          : `selected_contacts_${selected.length}.json`;
+    } else if (format === "csv") {
+      const csv = [headers, ...rows]
+        .map((row) =>
+          row
+            .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+            .join(",")
+        )
+        .join("\n");
+
+      blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      filename = `selected_contacts_${selected.length}.csv`;
+    } else {
+      const worksheetData = [headers, ...rows];
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Contacts");
+
+      const excelBuffer = XLSX.write(workbook, {
+        bookType: "xlsx",
+        type: "array",
+      });
+
+      blob = new Blob([excelBuffer], {
+        type:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      filename = `selected_contacts_${selected.length}.xlsx`;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export Successful",
+      description: `Downloaded ${selected.length} contact(s) as ${format.toUpperCase()}.`,
+    });
+  };
 
   const handleExportContact = (contact: Contact) => {
     const exportData = {
@@ -511,6 +616,36 @@ const filteredContacts =
           </Card>
         </div>
 
+        {/* Export Selected (only when something is selected) */}
+        {selectedContacts.size > 0 && (
+          <div className="flex justify-end gap-2 mb-6">
+            <Button
+              variant="default"
+              className="gap-2"
+              onClick={() => handleExportSelected("json")}
+            >
+              <Download className="w-4 h-4" />
+              JSON ({selectedContacts.size})
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => handleExportSelected("csv")}
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => handleExportSelected("excel")}
+            >
+              <Download className="w-4 h-4" />
+              Excel
+            </Button>
+          </div>
+        )}
+
         {/* Contacts Grid */}
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -537,101 +672,130 @@ const filteredContacts =
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredContacts.map((contact, index) => (
-              <motion.div
-                key={contact.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-              >
-                <Card 
-                  className="p-6 hover-elevate active-elevate-2 transition-all border-2 h-full cursor-pointer" 
-                  data-testid={`card-contact-${contact.id}`}
-                  onClick={() => setSelectedContact(contact)}
+            {filteredContacts.map((contact, index) => {
+              const isSelected = selectedContacts.has(contact.id);
+
+              return (
+                <motion.div
+                  key={contact.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-foreground mb-1">
-                        {contact.name}
-                      </h3>
-                      {contact.title && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
-                          <Briefcase className="w-3 h-3" />
-                          {contact.title}
-                        </p>
-                      )}
-                      {contact.company && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <Building2 className="w-3 h-3" />
-                          {contact.company}
-                        </p>
-                      )}
-                    </div>
-                    <Badge variant="secondary" className="shrink-0">
-                      <span className={getConfidenceColor(contact.confidenceScore || 0)}>
-                        {Math.round((contact.confidenceScore || 0) * 100)}%
-                      </span>
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-2 mb-4">
-                    {contact.email && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <Mail className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{contact.email}</span>
-                      </p>
-                    )}
-                    {contact.phone && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <Phone className="w-3 h-3 shrink-0" />
-                        {contact.phone}
-                      </p>
-                    )}
-                    {contact.location && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        {contact.location}
-                      </p>
-                    )}
-                  </div>
-
-                  {contact.skills && contact.skills.length > 0 && (
-                    <div className="mb-4">
-                      <div className="flex flex-wrap gap-1">
-                        {contact.skills.slice(0, 3).map((skill, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs max-w-[120px] truncate">
-                            {skill}
-                          </Badge>
-                        ))}
-                        {contact.skills.length > 3 && (
-                          <Badge variant="secondary" className="text-xs shrink-0">
-                            +{contact.skills.length - 3}
-                          </Badge>
+                  <Card
+                    className="p-6 hover-elevate active-elevate-2 transition-all border-2 h-full cursor-pointer"
+                    data-testid={`card-contact-${contact.id}`}
+                    onClick={() => setSelectedContact(contact)}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-foreground mb-1">
+                          {contact.name}
+                        </h3>
+                        {contact.title && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                            <Briefcase className="w-3 h-3" />
+                            {contact.title}
+                          </p>
+                        )}
+                        {contact.company && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Building2 className="w-3 h-3" />
+                            {contact.company}
+                          </p>
                         )}
                       </div>
-                    </div>
-                  )}
 
-                  <div className="flex gap-2 pt-4 border-t">
-                    {contact.linkedinUrl && (
-                      <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-linkedin">
-                        <Linkedin className="w-4 h-4" />
-                      </Button>
+                      {/* confidence + select toggle */}
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="shrink-0">
+                          <span className={getConfidenceColor(contact.confidenceScore || 0)}>
+                            {Math.round((contact.confidenceScore || 0) * 100)}%
+                          </span>
+                        </Badge>
+
+                        <button
+                          type="button"
+                          className={`h-6 w-6 rounded-full border flex items-center justify-center text-[10px] transition
+                            ${isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                            }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedContacts((prev) => {
+                              const copy = new Set(prev);
+                              if (copy.has(contact.id)) copy.delete(contact.id);
+                              else copy.add(contact.id);
+                              return copy;
+                            });
+                          }}
+                        >
+                          {isSelected && <Check className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* the rest of your card stays the same */}
+                    <div className="space-y-2 mb-4">
+                      {contact.email && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-2">
+                          <Mail className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{contact.email}</span>
+                        </p>
+                      )}
+                      {contact.phone && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-2">
+                          <Phone className="w-3 h-3 shrink-0" />
+                          {contact.phone}
+                        </p>
+                      )}
+                      {contact.location && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-2">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          {contact.location}
+                        </p>
+                      )}
+                    </div>
+
+                    {contact.skills && contact.skills.length > 0 && (
+                      <div className="mb-4">
+                        <div className="flex flex-wrap gap-1">
+                          {contact.skills.slice(0, 3).map((skill, i) => (
+                            <Badge key={i} variant="secondary" className="text-xs max-w-[120px] truncate">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {contact.skills.length > 3 && (
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              +{contact.skills.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     )}
-                    {contact.githubUrl && (
-                      <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-github">
-                        <Github className="w-4 h-4" />
-                      </Button>
-                    )}
-                    {contact.websiteUrl && (
-                      <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-website">
-                        <Globe className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
+
+                    <div className="flex gap-2 pt-4 border-t">
+                      {contact.linkedinUrl && (
+                        <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-linkedin">
+                          <Linkedin className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {contact.githubUrl && (
+                        <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-github">
+                          <Github className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {contact.websiteUrl && (
+                        <Button size="icon" variant="ghost" className="h-8 w-8" data-testid="button-website">
+                          <Globe className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

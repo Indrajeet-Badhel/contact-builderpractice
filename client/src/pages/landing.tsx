@@ -35,8 +35,21 @@ export default function Landing() {
 
   const stats = [
     { value: "90%+", label: "Extraction Accuracy" },
-    { value: "10sec", label: "Average Processing" },
+    { value: "1 Min", label: "Average Processing" },
     { value: "Multiple", label: "Export Formats" },
+  ];
+
+    const platforms = [
+    { icon: SiGithub, name: "GitHub", color: "#181717" },
+    { icon: SiStackoverflow, name: "Stack Overflow", color: "#F48024" },
+    { icon: SiWikipedia, name: "Wikipedia", color: "#000000" },
+    { icon: SiDevdotto, name: "Dev.to", color: "#0A0A0A" },
+    { icon: SiGitlab, name: "GitLab", color: "#FC6D26" },
+    { icon: SiHuggingface, name: "Hugging Face", color: "#FFD21E" },
+    { icon: SiGooglegemini, name: "Gemini AI", color: "#8E75B2" },
+    { icon: SiHubspot, name: "HubSpot", color: "#FF7A59" },
+    { icon: SiKaggle, name: "Kaggle", color: "#20BEFF" },
+    { icon: Beaker, name: "ORCID", color: "#A6CE39" },
   ];
 
   return (
@@ -134,6 +147,10 @@ export default function Landing() {
                 variant="outline"
                 className="text-base px-8 py-6 h-auto font-semibold"
                 data-testid="button-learn-more"
+                onClick={() => {
+                  const section = document.getElementById("how-it-works");
+                  section?.scrollIntoView({ behavior: "smooth" });
+                }}
               >
                 <FileText className="w-5 h-5 mr-2" />
                 See How It Works
@@ -175,29 +192,16 @@ export default function Landing() {
           </div>
           
           <div className="relative overflow-hidden">
-            <div className="flex gap-8 animate-scroll">
-              {[
-                { icon: SiGithub, name: "GitHub", color: "#181717" },
-                { icon: SiStackoverflow, name: "Stack Overflow", color: "#F48024" },
-                { icon: SiWikipedia, name: "Wikipedia", color: "#000000" },
-                { icon: SiDevdotto, name: "Dev.to", color: "#0A0A0A" },
-                { icon: SiGitlab, name: "GitLab", color: "#FC6D26" },
-                { icon: SiHuggingface, name: "Hugging Face", color: "#FFD21E" },
-                { icon: SiGooglegemini, name: "Gemini AI", color: "#8E75B2" },
-                { icon: SiHubspot, name: "HubSpot", color: "#FF7A59" },
-                { icon: SiKaggle, name: "Kaggle", color: "#20BEFF" },
-                { icon: Beaker, name: "ORCID", color: "#A6CE39" },
-                { icon: SiGithub, name: "GitHub", color: "#181717" },
-                { icon: SiStackoverflow, name: "Stack Overflow", color: "#F48024" },
-                { icon: SiWikipedia, name: "Wikipedia", color: "#000000" },
-                { icon: SiDevdotto, name: "Dev.to", color: "#0A0A0A" },
-              ].map((platform, index) => (
+            <div className="flex gap-8 animate-scroll-long whitespace-nowrap">
+              {[...platforms, ...platforms].map((platform, index) => (
                 <div
                   key={index}
                   className="flex flex-col items-center gap-2 min-w-[120px] p-4 bg-background border rounded-lg hover:border-primary/50 transition-colors"
                 >
                   <platform.icon className="w-10 h-10" style={{ color: platform.color }} />
-                  <span className="text-xs font-medium text-muted-foreground">{platform.name}</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {platform.name}
+                  </span>
                 </div>
               ))}
             </div>
@@ -205,22 +209,24 @@ export default function Landing() {
         </div>
       </section>
 
-      <style>{`
-        @keyframes scroll {
-          0% {
-            transform: translateX(0);
+            <style>{`
+          .animate-scroll-long {
+            display: flex;
+            animation: scroll-long 30s linear infinite;
           }
-          100% {
-            transform: translateX(calc(-120px * 7 - 32px * 7));
+          .animate-scroll-long:hover {
+            animation-play-state: paused;
           }
-        }
-        .animate-scroll {
-          animation: scroll 30s linear infinite;
-        }
-        .animate-scroll:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
+
+          @keyframes scroll-long {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-50%);
+            }
+          }
+        `}</style>
 
       {/* Features Grid */}
       <section className="py-16 sm:py-24 bg-muted/30">
@@ -268,7 +274,7 @@ export default function Landing() {
       </section>
 
       {/* How It Works */}
-      <section className="py-16 sm:py-24">
+      <section id="how-it-works" className="py-16 sm:py-24">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-foreground mb-4 font-['Space_Grotesk']">
