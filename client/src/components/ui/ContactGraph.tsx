@@ -1,49 +1,80 @@
 // client/src/components/ui/ContactGraph.tsx
 
-import React, { useEffect, useRef, useState } from "react";
-import cytoscape, { Core, ElementDefinition } from "cytoscape";
-import * as coseBilkent from "cytoscape-cose-bilkent";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Contact } from "@shared/schema";
-
-// Register layout plugin defensively (avoid crash if plugin missing)
-try {
-  // some bundlers export plugin as default, others as module namespace
-  // using both forms covers common cases
-  // @ts-ignore
-  cytoscape.use((coseBilkent && (coseBilkent.default || coseBilkent)) as any);
-} catch (e) {
-  // plugin not available — fallback to default layouts
-}
+import ForceGraph3D, { ForceGraphMethods } from "react-force-graph-3d";
+import SpriteText from "three-spritetext";
 
 // ------------------------
 // Utility
 // ------------------------
 function jaccard(a: string[] | undefined, b: string[] | undefined): number {
   if (!a || !b || a.length === 0 || b.length === 0) return 0;
-  const A = new Set(a.map(x => x.toLowerCase()));
-  const B = new Set(b.map(x => x.toLowerCase()));
+  const A = new Set(a.map((x) => x.toLowerCase()));
+  const B = new Set(b.map((x) => x.toLowerCase()));
   const arrA = Array.from(A);
   const arrB = Array.from(B);
-  const inter = arrA.filter(x => B.has(x)).length;
+  const inter = arrA.filter((x) => B.has(x)).length;
   const union = new Set(arrA.concat(arrB)).size;
   return union === 0 ? 0 : inter / union;
 }
 
-// ========================
-// MAIN COMPONENT
-// ========================
+type NodeType = "person" | "company" | "skill" | "project";
+
+type GraphNode = {
+  id: string;
+  label: string;
+  type: NodeType;
+  raw?: Contact | null;
+  x?: number;
+  y?: number;
+  z?: number;
+};
+
+type GraphLink = {
+  source: string;
+  target: string;
+  label: string;
+  weight: number;
+};
+
+type GraphData = {
+  nodes: GraphNode[];
+  links: GraphLink[];
+};
+
 export default function ContactGraph({ compact = false }: { compact?: boolean }) {
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const cyRef = useRef<Core | null>(null);
+  const fgRef = useRef<ForceGraphMethods | undefined>();
+  const graphContainerRef = useRef<HTMLDivElement | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selected, setSelected] = useState<Contact | null>(null);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; html: string } | null>(null);
+
+  const [dimensions, setDimensions] = useState({
+    width: 800,
+    height: compact ? 500 : 780,
+  });
 
   // ------------------------
-  // Fetch contacts
+  // Measure graph width so 3D doesn't cover side panel
   // ------------------------
+  useEffect(() => {
+    const updateSize = () => {
+      if (!graphContainerRef.current) return;
+      const rect = graphContainerRef.current.getBoundingClientRect();
+      setDimensions({
+        width: rect.width,
+        height: compact ? 500 : 780,
+      });
+    };
+
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [compact]);
 
   // ------------------------
   // Fetch contacts
@@ -52,10 +83,7 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
     async function load() {
       setLoading(true);
       try {
-        // Check if we're on admin page by checking current path
-        const isAdminPage = window.location.pathname.includes('/admin');
-        
-        // Use admin endpoint if on admin page, otherwise use regular endpoint
+        const isAdminPage = window.location.pathname.includes("/admin");
         const endpoint = isAdminPage ? "/api/admin/contacts" : "/api/contacts";
         const res = await fetch(endpoint, { credentials: "include" });
         const data: Contact[] = await res.json();
@@ -70,271 +98,192 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
   }, []);
 
   // ------------------------
-  // Build graph
+  // Build graph data (with "common-only" properties)
   // ------------------------
-  useEffect(() => {
-    if (!mountRef.current) return;
-
-    if (cyRef.current) {
-      cyRef.current.destroy();
-      cyRef.current = null;
-    }
-
-    const elements: ElementDefinition[] = [];
-    const nodeMap = new Map<string, any>();
+  const graphData: GraphData = useMemo(() => {
+    const nodesMap = new Map<string, GraphNode>();
+    const links: GraphLink[] = [];
     const edgeSet = new Set<string>();
 
-    // Build nodes + edges
+    // propertyId -> set of personIds connected to it
+    const propertyPersonMap = new Map<string, Set<string>>();
+
     contacts.forEach((c) => {
       const personId = `person:${c.id}`;
-      nodeMap.set(personId, {
+      nodesMap.set(personId, {
         id: personId,
         label: c.name || c.email || "Unknown",
         type: "person",
-        data: c,
+        raw: c,
       });
 
+      // helper to track property nodes + edges
+      const connectProperty = (
+        propId: string,
+        label: string,
+        type: NodeType,
+        rel: string
+      ) => {
+        if (!nodesMap.has(propId)) {
+          nodesMap.set(propId, { id: propId, label, type });
+        }
+        const key = `${personId}---${rel}---${propId}`;
+        if (!edgeSet.has(key)) {
+          edgeSet.add(key);
+          links.push({
+            source: personId,
+            target: propId,
+            label: rel,
+            weight: 1,
+          });
+        }
+        if (!propertyPersonMap.has(propId)) {
+          propertyPersonMap.set(propId, new Set());
+        }
+        propertyPersonMap.get(propId)!.add(personId);
+      };
+
+      // company
       if (c.company) {
         const compId = `company:${c.company}`;
-        if (!nodeMap.has(compId))
-          nodeMap.set(compId, { id: compId, label: c.company, type: "company" });
-        edgeSet.add(`${personId}---worked_at---${compId}`);
+        connectProperty(compId, c.company, "company", "worked_at");
       }
 
+      // skills
       (c.skills || []).forEach((skill) => {
         const skillId = `skill:${skill.toLowerCase()}`;
-        if (!nodeMap.has(skillId))
-          nodeMap.set(skillId, { id: skillId, label: skill, type: "skill" });
-        edgeSet.add(`${personId}---skilled_in---${skillId}`);
+        connectProperty(skillId, skill, "skill", "skilled_in");
       });
 
+      // projects / repos
       try {
         const repos = (c.enrichedData as any)?.repositories || [];
         repos.slice(0, 5).forEach((r: any) => {
           const projId = `project:${r.url || r.name}`;
-          if (!nodeMap.has(projId))
-            nodeMap.set(projId, { id: projId, label: r.name || "Repo", type: "project" });
-          edgeSet.add(`${personId}---contributed_to---${projId}`);
+          connectProperty(projId, r.name || "Repo", "project", "contributed_to");
         });
       } catch {}
     });
 
-    // Add similarity edges
-    const people = contacts.map(c => ({
-      id: `person:${c.id}`,
-      skills: (c.skills || []).map(s => s.toLowerCase()),
-    }));
+    // show all people, properties only if:
+    // - common (>=2 people), or
+    // - unique but belongs to selected person
+    const visibleNodeIds = new Set<string>();
 
-    for (let i = 0; i < people.length; i++) {
-      for (let j = i + 1; j < people.length; j++) {
-        const sim = jaccard(people[i].skills, people[j].skills);
-        if (sim >= 0.4) {
-          edgeSet.add(`${people[i].id}---similar_to---${people[j].id}---${sim.toFixed(2)}`);
-        }
-      }
+    // all person nodes visible
+    for (const [id, node] of nodesMap.entries()) {
+      if (node.type === "person") visibleNodeIds.add(id);
     }
 
-    // Convert to Cytoscape format
-    nodeMap.forEach((n) =>
-      elements.push({
-        data: { id: n.id, label: n.label, type: n.type, raw: n.data || null },
-      })
+    for (const [id, node] of nodesMap.entries()) {
+      if (node.type === "person") continue;
+
+      const set = propertyPersonMap.get(id);
+      const count = set ? set.size : 0;
+      const isCommon = count >= 2;
+      const belongsToSelected =
+        selectedPersonId && set ? set.has(selectedPersonId) : false;
+
+      if (isCommon || belongsToSelected) visibleNodeIds.add(id);
+    }
+
+    const filteredNodes: GraphNode[] = [];
+    for (const [id, node] of nodesMap.entries()) {
+      if (visibleNodeIds.has(id)) filteredNodes.push(node);
+    }
+
+    const filteredLinks = links.filter(
+      (l) =>
+        visibleNodeIds.has(l.source as string) &&
+        visibleNodeIds.has(l.target as string)
     );
 
-    edgeSet.forEach((raw) => {
-      const parts = raw.split("---");
-      const src = parts[0];
-      const rel = parts[1];
-      const tgt = parts[2];
-      const weight = parts[3] ? parseFloat(parts[3]) : 1;
+    return { nodes: filteredNodes, links: filteredLinks };
+  }, [contacts, selectedPersonId]);
 
-      elements.push({
-        data: {
-          id: `edge:${src}->${tgt}->${rel}`,
-          source: src,
-          target: tgt,
-          label: rel,
-          weight,
-        },
-      });
+  // ------------------------
+  // Search -> move camera to first match
+  // ------------------------
+  useEffect(() => {
+    if (!search || !graphData.nodes.length || !fgRef.current) return;
+    const q = search.toLowerCase();
+    const match = graphData.nodes.find((n) =>
+      n.label.toLowerCase().includes(q)
+    );
+    if (!match) return;
+
+    requestAnimationFrame(() => {
+      if (!fgRef.current) return;
+      const { x = 0, y = 0, z = 0 } = match;
+      const distance = 160;
+      fgRef.current!.cameraPosition(
+        { x, y, z: z + distance },
+        { x, y, z },
+        800
+      );
     });
+  }, [search, graphData]);
 
-    // ------------------------
-    // Init Cytoscape
-    // ------------------------
-    const cy = cytoscape({
-      container: mountRef.current,
-      elements,
-      layout: ({
-        name: "cose-bilkent",
-        animate: false,
-        nodeRepulsion: 12000,
-        idealEdgeLength: 180,
-        gravity: 0.25,
-        numIter: 3000,
-        tile: true,
-        padding: 40,
-      } as any),
-
-      style: [
-        // Default node
-        {
-          selector: "node",
-          style: {
-            label: "data(label)",
-            "text-valign": "center",
-            "text-halign": "center",
-            color: "#fff",
-            width: 28,
-            height: 28,
-            "font-size": "8px",
-            "text-wrap": "wrap",
-            "text-max-width": "60px",
-          },
-        },
-        {
-          selector: "node[type='person']",
-          style: {
-            "background-color": "#2563eb",
-            width: 38,
-            height: 38,
-            "font-size": "11px",
-            "font-weight": "bold",
-          },
-        },
-        {
-          selector: "node[type='company']",
-          style: { "background-color": "#059669" },
-        },
-        {
-          selector: "node[type='skill']",
-          style: { "background-color": "#d97706" },
-        },
-        {
-          selector: "node[type='project']",
-          style: { "background-color": "#7c3aed" },
-        },
-
-        // Edge styling
-        {
-          selector: "edge",
-          style: {
-            "curve-style": "bezier",
-            "target-arrow-shape": "triangle",
-            "line-color": "#94a3b8",
-            "target-arrow-color": "#94a3b8",
-            width: 1.2,
-            label: "data(label)",
-            color: "#1f2937",
-            "font-size": "7px",
-            "text-background-color": "#fff",
-            "text-background-opacity": 0.85,
-            "text-background-padding": "2px",
-            "text-rotation": "autorotate",
-            "text-margin-y": -8,
-          },
-        },
-
-        // Hover clarity
-        {
-          selector: ".faded",
-          style: { opacity: 0.08 },
-        },
-        // Highlighted via search
-        {
-          selector: ".highlight",
-          style: {
-            "border-color": "#f59e0b",
-            "border-width": 4,
-            "background-color": "#fffbeb",
-            "text-outline-color": "#b45309",
-            "text-outline-width": 2,
-          },
-        },
-      ],
-    });
-
-    // ------------------------
-    // Interactions
-    // ------------------------
-    const onTap = (evt: any) => {
-      const d = evt.target.data();
-      if (d.type === "person") {
-        const c = d.raw as Contact;
-        setSelected(c || null);
-      } else {
-        setSelected(null);
-      }
-    };
-
-    const onMouseOver = (evt: any) => {
-      const node = evt.target;
-      const d = node.data();
-      cy.elements().addClass("faded");
-      node.connectedEdges().connectedNodes().removeClass("faded");
-      node.connectedEdges().removeClass("faded");
-
-      // show small tooltip near cursor
-      if (d.type === "person") {
-        const c = d.raw as Contact;
-        const pos = evt.renderedPosition || evt.position || { x: 0, y: 0 };
-        setTooltip({
-          x: pos.x + 10,
-          y: pos.y + 10,
-          html: `<strong>${(c.name || "Unknown").replace(/</g, "&lt;")}</strong><br/>${(c.title || "").replace(/</g, "&lt;")}`,
-        });
-      }
-    };
-
-    const onMouseOut = () => {
-      cy.elements().removeClass("faded");
-      setTooltip(null);
-    };
-
-    cy.on("tap", "node", onTap);
-    cy.on("mouseover", "node", onMouseOver);
-    cy.on("mouseout", "node", onMouseOut);
-
-    // store ref
-    cyRef.current = cy;
-
-    // apply search highlight if search exists
-      if (search && search.trim().length > 0) {
-      const q = search.toLowerCase();
-      cy.nodes().forEach((n) => {
-        const label = (n.data("label") || "").toString().toLowerCase();
-        if (label.includes(q)) n.addClass("highlight"); else n.removeClass("highlight");
-      });
-      // focus to first match
-      const match = cy.nodes(`node[label *= "${search.replace(/"/g, '\\"')}"]`);
-      if (match && match.length > 0) {
-        try {
-          // prefer fit which is well-typed
-          cy.fit(match[0], 80);
-        } catch {
-          // fallback to animate if available at runtime
-          try { (cy as any).animate({ center: { eles: match[0] }, duration: 400 }); } catch {}
-        }
-      }
+  // ------------------------
+  // Colors / sizes
+  // ------------------------
+  const getNodeColor = (node: GraphNode) => {
+    switch (node.type) {
+      case "person":
+        return "#2563eb"; // blue-600
+      case "company":
+        return "#059669"; // green-600
+      case "skill":
+        return "#d97706"; // amber-600
+      case "project":
+        return "#7c3aed"; // violet-600
+      default:
+        return "#64748b";
     }
+  };
 
-    // cleanup listeners and cytoscape instance
-    return () => {
-      try {
-        cy.off("tap", "node", onTap);
-        cy.off("mouseover", "node", onMouseOver);
-        cy.off("mouseout", "node", onMouseOut);
-      } catch {}
-      try {
-        cy.destroy();
-      } catch {}
-      cyRef.current = null;
-    };
-  }, [contacts, search]);
+  const getNodeVal = (node: GraphNode) => {
+    const base = node.type === "person" ? 10 : 6;
+    if (search && node.label.toLowerCase().includes(search.toLowerCase())) {
+      return base * 1.8;
+    }
+    if (selectedPersonId && node.id === selectedPersonId) {
+      return base * 2;
+    }
+    return base;
+  };
 
-  // toolbar and side panel UI
+  // ------------------------
+  // Zoom controls
+  // ------------------------
+  const handleZoomIn = () => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const cam = fg.camera();
+    const { x, y, z } = cam.position;
+    fg.cameraPosition({ x, y, z: z * 0.8 }, undefined, 400);
+  };
+
+  const handleZoomOut = () => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const cam = fg.camera();
+    const { x, y, z } = cam.position;
+    fg.cameraPosition({ x, y, z: z * 1.25 }, undefined, 400);
+  };
+
+  const handleReset = () => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    fg.zoomToFit(800, 40);
+  };
+
+  // ------------------------
+  // Render
+  // ------------------------
   return (
     <div className="w-full h-full relative">
+      {/* Top toolbar: search + zoom */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <input
@@ -345,33 +294,19 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
           />
           <button
             className="px-3 py-2 bg-slate-100 rounded-md"
-            onClick={() => {
-              const cy = cyRef.current;
-              if (!cy) return;
-              const newLevel = Math.min(cy.zoom() + 0.2, 2);
-              cy.zoom(newLevel);
-            }}
+            onClick={handleZoomIn}
           >
             Zoom +
           </button>
           <button
             className="px-3 py-2 bg-slate-100 rounded-md"
-            onClick={() => {
-              const cy = cyRef.current;
-              if (!cy) return;
-              const newLevel = Math.max(cy.zoom() - 0.2, 0.2);
-              cy.zoom(newLevel);
-            }}
+            onClick={handleZoomOut}
           >
             Zoom -
           </button>
           <button
             className="px-3 py-2 bg-slate-100 rounded-md"
-            onClick={() => {
-              const cy = cyRef.current;
-              if (!cy) return;
-              cy.reset();
-            }}
+            onClick={handleReset}
           >
             Reset
           </button>
@@ -379,24 +314,66 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
         <div className="text-sm text-slate-500">Nodes: {contacts.length}</div>
       </div>
 
+      {/* Main layout: 3D graph + side panel */}
       <div className="flex gap-4">
-        <div style={{ flex: 1, minHeight: compact ? 500 : 780 }}>
+        {/* 3D graph column */}
+        <div
+          ref={graphContainerRef}
+          style={{ flex: 1, minHeight: compact ? 500 : 780 }}
+        >
           {loading ? (
             <div className="p-6 text-center">Loading graph…</div>
           ) : (
-            <div
-              ref={mountRef}
-              style={{
-                width: "100%",
-                height: compact ? 500 : 780,
-                borderRadius: 8,
-                border: "1px solid rgba(148,163,184,0.12)",
-                background: "var(--background)",
+            <ForceGraph3D
+              ref={fgRef as any}
+              graphData={graphData}
+              width={dimensions.width}
+              height={dimensions.height}
+              backgroundColor="rgba(15,23,42,0)" // keep page bg visible
+              nodeId="id"
+              linkSource="source"
+              linkTarget="target"
+              // --- LABELS ON NODES (always visible) ---
+              nodeThreeObject={(nodeObj: any) => {
+                const node = nodeObj as GraphNode;
+                const sprite = new SpriteText(node.label);
+                sprite.textHeight = node.type === "person" ? 6 : 4;
+                sprite.color = "#000000";
+                return sprite;
+              }}
+              nodeThreeObjectExtend={true} // keep default sphere under label
+              nodeColor={(node: any) => getNodeColor(node as GraphNode)}
+              nodeVal={(node: any) => getNodeVal(node as GraphNode)}
+              // edge styling
+              linkWidth={(link: any) => 0.5 + (link.weight || 1) * 0.3}
+              linkOpacity={0.6}
+              linkDirectionalArrowLength={3.5}
+              linkDirectionalArrowRelPos={0.5}
+              linkThreeObject={(linkObj: any) => {
+                const link = linkObj as GraphLink;
+                const sprite = new SpriteText(link.label || "");
+                sprite.textHeight = 1.5;
+                sprite.color = "#1f2937";
+                return sprite;
+              }}
+              linkThreeObjectExtend
+              cooldownTicks={200}
+              d3VelocityDecay={0.3}
+              onNodeClick={(nodeObj: any) => {
+                const node = nodeObj as GraphNode;
+                if (node.type === "person" && node.raw) {
+                  setSelected(node.raw);
+                  setSelectedPersonId(node.id);
+                } else {
+                  setSelected(null);
+                  setSelectedPersonId(null);
+                }
               }}
             />
           )}
         </div>
 
+        {/* Right-hand side panel: Details + Legend */}
         <div style={{ width: 320 }}>
           <div className="p-3 border rounded-md bg-white shadow-sm">
             <h3 className="font-semibold">Details</h3>
@@ -405,35 +382,52 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
                 <div className="font-medium">{selected.name}</div>
                 <div className="text-muted-foreground">{selected.title}</div>
                 <div className="mt-2">{selected.company}</div>
-                <div className="mt-2 text-xs text-slate-600">Skills: {(selected.skills || []).slice(0,6).join(', ')}</div>
+                <div className="mt-2 text-xs text-slate-600">
+                  Skills: {(selected.skills || []).slice(0, 6).join(", ")}
+                </div>
                 <div className="mt-2">
                   {selected.websiteUrl ? (
-                    <a className="text-blue-600" href={selected.websiteUrl ?? undefined} target="_blank" rel="noreferrer">Website</a>
+                    <a
+                      className="text-blue-600"
+                      href={selected.websiteUrl ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Website
+                    </a>
                   ) : null}
                 </div>
               </div>
             ) : (
-              <div className="mt-2 text-sm text-slate-600">Click a person node to view details here.</div>
+              <div className="mt-2 text-sm text-slate-600">
+                Click a person node to view details here.
+              </div>
             )}
           </div>
+
           <div className="mt-3 p-3 border rounded-md bg-white shadow-sm">
             <h4 className="font-semibold">Legend</h4>
             <div className="mt-2 text-sm">
-              <div><span className="inline-block w-3 h-3 bg-blue-600 mr-2 align-middle" /> Person</div>
-              <div><span className="inline-block w-3 h-3 bg-green-600 mr-2 align-middle" /> Company</div>
-              <div><span className="inline-block w-3 h-3 bg-amber-600 mr-2 align-middle" /> Skill</div>
-              <div><span className="inline-block w-3 h-3 bg-violet-600 mr-2 align-middle" /> Project</div>
+              <div>
+                <span className="inline-block w-3 h-3 bg-blue-600 mr-2 align-middle" />
+                Person
+              </div>
+              <div>
+                <span className="inline-block w-3 h-3 bg-green-600 mr-2 align-middle" />
+                Company
+              </div>
+              <div>
+                <span className="inline-block w-3 h-3 bg-amber-600 mr-2 align-middle" />
+                Skill
+              </div>
+              <div>
+                <span className="inline-block w-3 h-3 bg-violet-600 mr-2 align-middle" />
+                Project
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {tooltip ? (
-        <div
-          style={{ position: 'absolute', left: tooltip.x, top: tooltip.y, pointerEvents: 'none', background: 'white', padding: 6, borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', fontSize: 12 }}
-          dangerouslySetInnerHTML={{ __html: tooltip.html }}
-        />
-      ) : null}
     </div>
   );
 }
