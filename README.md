@@ -1,307 +1,257 @@
-# Contact Builder - AI-Powered Contact Intelligence
+# Contact Builder
 
-> Transform resumes, documents, and business cards into comprehensive, verified contact profiles using AI and OSINT enrichment.
-
-![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)
+![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)
+![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
+![GitHub Stars](https://img.shields.io/github/stars/contact-builderpractice?style=social)
 
 ## Overview
 
-Contact Builder is an AI-driven system that automatically constructs comprehensive, verified contact profiles from minimal input. Upload a resume, PDF, business card image, or any professional document, and get back structured, CRM-ready contact data enriched from multiple public sources.
+**Contact Builder** is an AI-powered contact intelligence platform that transforms resumes, business cards, and documents into comprehensive, verified contact profiles. Using advanced NLP, OSINT, and knowledge graph technology, it extracts, enriches, and organizes contact data from public sources, creating CRM-ready profiles with confidence scoring.
 
-**Key Features:**
-- **Smart Document Processing** - AI-powered extraction from PDFs, DOCX, images, and text files
-- **Multi-Source Enrichment** - Automatically enriches contacts using GitHub, ORCID, Stack Overflow, Wikipedia, and more
-- **Semantic Search** - Natural language queries like "Find Python developers with ML experience"
-- **Confidence Scoring** - AI-powered scoring system to validate data accuracy
-- **Intelligent Deduplication** - Prevents duplicate contacts using similarity algorithms
-- **CRM-Ready Exports** - Export to Excel, CSV, JSON, or vCard formats
-- **Privacy-First** - GDPR-compliant, only accesses public data sources
+### Key Features:
+**AI-Powered Document Processing** - Extracts data from PDFs, DOCX, images, and text files
+**Multi-Source Enrichment** - Aggregates data from GitHub, ORCID, Stack Overflow, Wikipedia, and more
+**Semantic Search** - Natural language queries like "Find Python developers in San Francisco"
+**Confidence Scoring** - AI-powered validation of extracted data
+**Intelligent Deduplication** - Prevents duplicate contacts using similarity algorithms
+**CRM-Ready Exports** - Export to Excel, CSV, JSON, or vCard formats
+**Privacy-First** - GDPR-compliant, only accesses public data sources
+**Interactive Visualization** - 2D and 3D contact network graphs
 
-## Quick Start
+## Tech Stack
+
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **State Management**: TanStack Query (React Query)
+- **UI Components**: shadcn/ui with Radix UI primitives
+- **Styling**: Tailwind CSS with custom design system
+- **Visualization**: Cytoscape.js (2D) & React Force Graph 3D
+- **Routing**: Wouter
+
+### Backend
+- **Runtime**: Node.js with Express.js
+- **Database**: PostgreSQL (with Neon serverless option)
+- **ORM**: Drizzle ORM
+- **AI Services**: Google Generative AI (Gemini), Hugging Face, Google APIs
+- **Authentication**: Session-based with memorystore
+- **File Handling**: Multer for document uploads
+
+### Additional Tools
+- **OCR**: Tesseract, EasyOCR
+- **NLP**: spaCy, Hugging Face Transformers
+- **Data Enrichment**: GitHub API, ORCID, Stack Overflow, Wikipedia
+- **Testing**: Jest, React Testing Library
+
+## Installation
 
 ### Prerequisites
-
-- Node.js 20+ 
+- Node.js 20+
 - PostgreSQL database (or Neon serverless)
-- Gemini API key (required for document extraction)
+- Google Gemini API key (for document extraction)
 
-### Installation
+### Quick Start
 
 1. **Clone the repository**
-```bash
-git clone <your-repo-url>
-cd contact-builder
-```
+   ```bash
+   git clone https://github.com/Indrajeet-Badhel/contact-builderpractice.git
+   cd contact-builderpractice
+   ```
 
 2. **Install dependencies**
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 
 3. **Set up environment variables**
-
-Create a `.env` file in the root directory:
-
-```env
-# Required
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-SESSION_SECRET=your-secure-random-string-here
-
-# Optional (configure via UI after login)
-# GEMINI_API_KEY=your-gemini-api-key
-# GITHUB_TOKEN=your-github-token
-# HUGGINGFACE_API_KEY=your-hf-api-key
-```
+   Create a `.env` file in the root directory:
+   ```env
+   DATABASE_URL=postgresql://user:password@host:5432/dbname
+   SESSION_SECRET=your-secure-random-string-here
+   GEMINI_API_KEY=your-gemini-api-key
+   ```
 
 4. **Initialize database**
-```bash
-npm run db:push
-```
+   ```bash
+   npm run db:push
+   ```
 
 5. **Start development server**
-```bash
-npm run dev
-```
+   ```bash
+   npm run dev
+   ```
 
 6. **Open your browser**
-```
-http://localhost:5000
-```
+   ```
+   http://localhost:5000
+   ```
 
-## Usage Guide
+## Usage
 
-### 1. Login
-- Navigate to `/login`
-- Enter any email and password (min 6 characters)
-- Simple session-based auth for development
+### Basic Workflow
 
-### 2. Configure API Keys
-- Go to Profile → API Keys tab
-- Add your Gemini API key (required for extraction)
-- Optionally add GitHub, HuggingFace, and other service keys for enhanced enrichment
+1. **Login**: Navigate to `/login` and authenticate
+2. **Configure API Keys from profile**: Add your Gemini API key and other service keys
+3. **Upload Documents**: Drag & drop or click to upload resumes, business cards, or PDFs
+4. **View Contacts**: Browse extracted contacts with enriched data
+5. **Search & Filter**: Use semantic search to find specific contacts
+6. **Export**: Export contacts to Excel, CSV, JSON, or vCard formats
 
-### 3. Upload Documents
-- Navigate to Upload page
-- Drag & drop or click to upload:
-  - Resumes (PDF, DOCX)
-  - Business cards (PNG, JPG)
-  - Plain text files
-- Watch real-time extraction progress
-
-### 4. View & Search Contacts
-- Browse extracted contacts on Dashboard
-- Use semantic search: *"Show me contacts from San Francisco"*
-- View detailed profiles with enriched data from multiple sources
-- Export to Excel, CSV, or individual JSON files
-
-## Architecture
-
-### Tech Stack
-
-**Frontend:**
-- React 18 + TypeScript
-- TanStack Query for server state
-- Wouter for routing
-- shadcn/ui + Radix UI components
-- Tailwind CSS
-
-**Backend:**
-- Node.js + Express
-- PostgreSQL with Drizzle ORM
-- Session-based authentication
-- Multer for file uploads
-
-**AI Services:**
-- Google Gemini AI - Document extraction & semantic search
-- HuggingFace - Deduplication & similarity scoring
-- GitHub API - Repository & profile enrichment
-- ORCID API - Academic profile data
-- Stack Exchange, Wikipedia, GitLab, Dev.to APIs for additional enrichment
-
-### Project Structure
+## Project Structure
 
 ```
-contact-builder/
-├── client/               # React frontend
+contact-builderpractice/
+├── client/                  # Frontend React application
 │   ├── src/
-│   │   ├── components/  # Reusable UI components
-│   │   ├── pages/       # Page components
-│   │   ├── hooks/       # Custom React hooks
-│   │   └── lib/         # Utilities & API client
-│   └── index.html
-├── server/              # Express backend
-│   ├── routes.ts        # API route handlers
-│   ├── gemini.ts        # Gemini AI integration
-│   ├── enrichment.ts    # Multi-source enrichment
-│   ├── huggingface.ts   # Deduplication logic
-│   ├── storage.ts       # Database operations
-│   └── simpleAuth.ts    # Authentication
-├── shared/              # Shared TypeScript schemas
-│   └── schema.ts        # Drizzle ORM schemas
-└── migrations/          # Database migrations
+│   │   ├── components/       # Reusable UI components
+│   │   ├── hooks/            # Custom React hooks
+│   │   ├── pages/            # Page components
+│   │   ├── lib/              # Utility functions
+│   │   └── assets/           # Static assets
+│   ├── index.html            # Entry HTML file
+│   └── vite.config.ts        # Vite configuration
+├── server/                  # Backend Express server
+│   ├── routes/               # API route handlers
+│   ├── services/             # Business logic services
+│   ├── middleware/           # Express middleware
+│   └── index.ts              # Server entry point
+├── shared/                  # Shared types and schemas
+│   └── schema.ts             # Database schema definitions
+├── migrations/              # Database migrations
+├── public/                  # Static files
+├── .env                     # Environment variables
+├── package.json             # Project dependencies
+├── tsconfig.json            # TypeScript configuration
+└── README.md                # This file
 ```
 
 ## Configuration
 
-### Supported Data Sources
-
-#### Core Services (Recommended)
-- **Gemini AI** - Required for document extraction
-- **HuggingFace** - Optional, improves deduplication accuracy
-- **GitHub** - Optional, enriches developer profiles
-
-#### Developer Platforms (Free APIs)
-- GitHub, GitLab, Stack Overflow, Dev.to, Kaggle, Hashnode, Product Hunt
-
-#### Academic & Research (Free APIs)
-- ORCID, Semantic Scholar, OpenAlex, CrossRef, Google Scholar (via SerpAPI)
-
-#### Knowledge Bases (Free APIs)
-- Wikipedia, Wikidata, DBpedia, GDELT
-
-#### Professional Data
-- OpenCorporates (company registry)
-- Gravatar (profile images)
-
-All API keys can be configured securely via the Profile page after login.
-
-## Features Deep Dive
-
-### AI-Powered Document Extraction
-
-Upload any professional document and Gemini AI extracts:
-- Name, email, phone, location
-- Company, job title
-- Skills, education, experience
-- Social profiles (LinkedIn, GitHub, website)
-- Professional bio/summary
-
-### Multi-Source Enrichment
-
-Automatically enriches contacts by searching:
-1. **GitHub** - Repositories, contributions, bio, programming languages
-2. **ORCID** - Academic publications, affiliations, research interests
-3. **Stack Overflow** - Reputation, badges, expertise areas
-4. **Wikipedia/Wikidata** - Notable achievements, biographical data
-5. **Other platforms** - GitLab projects, Dev.to articles, etc.
-
-### Confidence Scoring
-
-Each contact receives an AI-calculated confidence score based on:
-- Number of verified sources
-- Field completeness (email, phone, company, etc.)
-- Presence of verifiable links (GitHub, LinkedIn, ORCID)
-- Cross-source data consistency
-
-### Intelligent Deduplication
-
-Uses HuggingFace sentence transformers to:
-- Detect duplicate contacts (>85% similarity)
-- Merge data from multiple sources
-- Prevent redundant entries
-
-### Semantic Search
-
-Natural language queries powered by Gemini:
-- *"Find Python developers with ML experience"*
-- *"Show me contacts from San Francisco"*
-- *"Engineers working on AI projects"*
-
-## Privacy & Compliance
-
-- **GDPR Compliant** - Only accesses public data sources
-- **No Scraping** - Uses official APIs and respects robots.txt
-- **User Consent** - Clear data source attribution
-- **Secure Storage** - API keys encrypted at rest
-- **No Special Categories** - Avoids health, religion, political data
-
-## Development
-
-### Build for Production
-
-```bash
-npm run dev
-npm run build
-npm run start
-```
-
-### Database Management
-
-```bash
-# Push schema changes
-npm run db:push
-
-# Generate migrations
-npx drizzle-kit generate
-
-# Apply migrations
-npx drizzle-kit migrate
-```
-
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `SESSION_SECRET` | No | Session encryption key (has default) |
-| `PORT` | No | Server port (default: 5000) |
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | ✔ |
+| `SESSION_SECRET` | Session secret for authentication | ✔ |
+| `GEMINI_API_KEY` | Google Gemini API key for document processing | ✔ |
+| `GITHUB_TOKEN` | GitHub API token for enrichment | X |
+| `HUGGINGFACE_API_KEY` | Hugging Face API key for NLP | X |
 
-API keys are managed via the UI and stored securely in the database.
+### Customization Options
 
-## API Endpoints
-
-### Authentication
-- `POST /api/login` - Email/password login
-- `GET /api/logout` - End session
-- `GET /api/auth/user` - Current user info
-
-### Contacts
-- `GET /api/contacts` - List all contacts
-- `GET /api/contacts/:id` - Get single contact
-- `POST /api/contacts` - Create contact
-- `PATCH /api/contacts/:id` - Update contact
-- `DELETE /api/contacts/:id` - Delete contact
-- `POST /api/contacts/search` - Semantic search
-
-### Documents
-- `POST /api/documents/upload` - Upload & extract
-- `GET /api/documents` - List uploads
-- `DELETE /api/documents/:id` - Delete document
-
-### Export
-- `POST /api/contacts/export/excel` - Export to Excel
-- `POST /api/contacts/export/csv` - Export to CSV
-- `POST /api/contacts/export/vcard` - Export to vCard
-
-### API Keys
-- `GET /api/api-keys` - List configured keys
-- `POST /api/api-keys` - Add/update key
-- `DELETE /api/api-keys/:id` - Remove key
-- `POST /api/api-keys/:id/test` - Test connection
+1. **Design System**: Modify `tailwind.config.ts` and `client/src/index.css` for custom styling
+2. **API Keys**: Configure additional enrichment services in the Profile settings
+3. **Document Processing**: Adjust the AI processing pipeline in `server/services/document-processor.ts`
+4. **Visualization**: Customize the graph layouts in `client/src/components/ui/ContactGraph.tsx`
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
+We welcome contributions from the community! Here's how you can help:
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### Getting Started
 
-## Acknowledgments
+1. **Fork the repository** and create your feature branch:
+   ```bash
+   git checkout -b feature/your-feature
+   ```
 
-- **Google Gemini** - AI-powered document extraction
-- **HuggingFace** - Similarity models for deduplication
-- **shadcn/ui** - Beautiful component library
-- **Drizzle ORM** - Type-safe database access
-- All the open data platforms that make enrichment possible
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
 
-## Support
+3. **Set up your development environment** as described in the Installation section
 
-- Issues: [GitHub Issues](https://github.com/Indrajeet-Badhel/contact-builderpractice/issues)
+### Development Workflow
 
----
+1. **Write tests**: Add tests for new features
+2. **Follow coding standards**: Use TypeScript for type safety
+3. **Commit your changes**:
+   ```bash
+   git commit -m "feat: add new feature"
+   ```
+4. **Push to the branch**:
+   ```bash
+   git push origin feature/your-feature
+   ```
+5. **Open a Pull Request**: Describe your changes clearly
 
-Built with ❤️
+### Code Style Guidelines
+
+- Use **TypeScript** for all new code
+- Follow **shadcn/ui** component patterns
+- Write **clear, concise commit messages**
+- Add **JSDoc comments** for all public APIs
+- Keep **functions small and focused**
+
+
+## Authors & Contributors
+
+**Maintainers**:
+- [Indrajeet Badhel](https://github.com/Indrajeet-Badhel)
+- [Sidra Jahangir](https://github.com/Itz-Sidra)
+- [Tanishq Jadhav](https://github.com/tanishq79)
+- [Jayshree](https://github.com/Jayshree-08)
+- [Ishan Gupta](https://github.com/Ishano246)
+
+
+**Special Thanks**:
+- [shadcn/ui](https://ui.shadcn.com/) - Component library
+- [TanStack Query](https://tanstack.com/query/latest) - State management
+- [Drizzle ORM](https://orm.drizzle.team/) - Database abstraction
+
+## Issues & Support
+
+### Reporting Issues
+
+If you encounter any problems or have feature requests:
+
+1. **Search existing issues** - Check if your issue has already been reported
+2. **Create a new issue** - Include:
+   - Clear description of the problem
+   - Steps to reproduce
+   - Expected behavior
+   - Your environment (Node.js version, OS, etc.)
+   - Any relevant code snippets
+
+### Getting Help
+
+- **Discussions**: Join our [GitHub Discussions](https://github.com/Indrajeet-Badhel/contact-builderpractice/discussions)
+
+## Roadmap
+
+### Current Version (v1.0.0)
+- Basic contact extraction and enrichment
+- Document processing pipeline
+- Simple UI for browsing contacts
+
+### Planned Features
+
+**Q1 2025**
+- [ ] Enhanced semantic search capabilities
+- [ ] Advanced graph visualization options
+- [ ] Mobile app support
+- [ ] API documentation improvements
+
+**Q2 2025**
+- [ ] Team collaboration features
+- [ ] Contact management workflows
+- [ ] Integration with popular CRMs
+- [ ] Advanced analytics dashboard
+
+**Future**
+- [ ] Machine learning model improvements
+- [ ] More data enrichment sources
+- [ ] Plugin architecture for custom processing
+- [ ] Enterprise-grade security features
+
+## Show Your Support
+
+If you find Contact Builder useful, please consider:
+
+- ⭐ **Starring** this repository
+- 💬 **Sharing** your feedback
+- 🤝 **Contributing** to the project
+- 📢 **Spreading the word** about this tool
+
+Together we can make Contact Builder the most powerful contact intelligence platform available!
