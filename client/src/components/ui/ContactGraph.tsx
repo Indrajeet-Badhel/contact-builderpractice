@@ -44,11 +44,20 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
   // ------------------------
   // Fetch contacts
   // ------------------------
+
+  // ------------------------
+  // Fetch contacts
+  // ------------------------
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch("/api/contacts", { credentials: "include" });
+        // Check if we're on admin page by checking current path
+        const isAdminPage = window.location.pathname.includes('/admin');
+        
+        // Use admin endpoint if on admin page, otherwise use regular endpoint
+        const endpoint = isAdminPage ? "/api/admin/contacts" : "/api/contacts";
+        const res = await fetch(endpoint, { credentials: "include" });
         const data: Contact[] = await res.json();
         setContacts(data);
       } catch (e) {
