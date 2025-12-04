@@ -488,7 +488,7 @@ const filteredContacts =
         <Card className="p-4 mb-4 border-2">
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
             <Input
-              placeholder="Paste LinkedIn / GitHub / portfolio URL to create or update a contact..."
+              placeholder="Paste / GitHub / portfolio URL to create or update a contact..."
               value={newContactUrl}
               onChange={(e) => setNewContactUrl(e.target.value)}
               className="border-0 focus-visible:ring-0 text-base bg-transparent"
