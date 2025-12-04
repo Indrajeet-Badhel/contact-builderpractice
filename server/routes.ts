@@ -59,42 +59,56 @@ const limit = pLimit(1);
 
 // Simple retry helper for async tasks (attempts, with optional delay)
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return "";
+
+  let result = String(str);
+
+  // Fix double-encoded ampersands first: &amp;#x2F; -> &#x2F;
+  result = result.replace(/&amp;#/g, "&#");
+
+  // Hex entities: &#x2F;
+  result = result.replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
+
+  // Decimal entities: &#47;
+  result = result.replace(/&#(\d+);/g, (_, dec) =>
+    String.fromCharCode(parseInt(dec, 10))
+  );
+
+  // Common named entities
+  result = result
+    .replace(/&amp;quot;/g, '"')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;#34;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&amp;#39;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;amp;/g, "&")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+  return result;
+}
+
 function cleanSkills(skills: any): string[] {
   if (!skills) return [];
 
   let list = skills;
 
-  // helper: decode common HTML entities (handles double-encoded values like &amp;quot;)
-  function decodeHtmlEntities(str: string): string {
-    if (!str) return "";
-    // decode common patterns; order matters (handle &amp;quot; first)
-    return String(str)
-      .replace(/&amp;quot;/g, '\"')
-      .replace(/&quot;/g, '\"')
-      .replace(/&amp;#34;/g, '\"')
-      .replace(/&#34;/g, '\"')
-      .replace(/&amp;#39;/g, "'")
-      .replace(/&#39;/g, "'")
-      .replace(/&amp;amp;/g, '&')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
-  }
-
-  // If skills came as JSON string → try to decode + parse them
   if (typeof list === "string") {
     try {
       const decoded = decodeHtmlEntities(list);
       list = JSON.parse(decoded);
     } catch {
-      // Split fallback (decode each piece)
       list = list
-        .split(/[,;\n\r]+/) // allow commas, semicolons, newlines
+        .split(/[,;\n\r]+/)
         .map((s: string) => decodeHtmlEntities(s).trim());
     }
   }
 
-  // Normalize each entry and strip stray brackets/quotes
   return (Array.isArray(list) ? list : [list])
     .map((s: any) => decodeHtmlEntities(String(s || "")).replace(/[\[\]\"]/g, "").trim())
     .filter(Boolean);
@@ -121,6 +135,24 @@ async function retry<T>(
 
 function normalizeString(value?: string | null): string {
   return (value || "").toLowerCase().trim();
+}
+
+function deriveNameFromUrl(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    let host = u.hostname.toLowerCase(); // ecellvitpune.in
+    host = host.replace(/^www\./, "");   // remove www.
+
+    const main = host.split(".")[0];     // "ecellvitpune"
+    if (!main) return "";
+
+    const spaced = main.replace(/[-_]/g, " "); // "ecell vit pune" if hyphenated
+
+    // Capitalize words → "Ecellvitpune" / "Ecell Vit Pune"
+    return spaced.replace(/\b\w/g, (c) => c.toUpperCase());
+  } catch {
+    return "";
+  }
 }
 
 function normalizeUrl(value?: string | null): string {
@@ -572,6 +604,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = req.user.claims.sub;
         const { url } = req.body;
 
+        // 🔥 Always clean the incoming URL once
+        const rawUrl = url;
+        const cleanedUrl = decodeHtmlEntities(rawUrl);
+
         // get Gemini key
         const geminiKey = await storage.getApiKeyByService(
           userId,
@@ -584,13 +620,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // 1) extract from website
+        // 1) extract from website using the cleaned URL
         const extracted = await extractContactFromWebsite(
-          url,
+          cleanedUrl,
           geminiKey.encryptedValue
         );
 
-        // 2) optional enrichment (GitHub, ORCID, etc.)
+        // 2) optional enrichment
         const githubKey = await storage
           .getApiKeyByService(userId, "github", "api_key")
           .catch(() => null);
@@ -601,32 +637,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
           { conservative: true }
         );
 
+        // Decode any URLs coming back from enrichment
+        const normalizedEnrichedSources = (enriched.sources || []).map((s: any) => ({
+          ...s,
+          url: s.url ? decodeHtmlEntities(s.url) : s.url,
+        }));
+
+        const derivedNameFromUrl = deriveNameFromUrl(cleanedUrl);
+
+        const finalName =
+          enriched.name ||
+          extracted.name ||
+          derivedNameFromUrl ||
+          "Unknown";
+
+        const finalCompany =
+          enriched.company ||
+          extracted.company ||
+          derivedNameFromUrl ||
+          undefined;
+
         // 3) check duplicates
         const existingContacts = await storage.getContacts(userId);
 
-        // Use strong heuristic: email / github / name, etc.
         const possibleDuplicate = existingContacts.find((c) =>
           areLikelySamePerson(
             {
-              name: enriched.name || extracted.name,
+              name: enriched.name || extracted.name || finalName,
               email: enriched.email || extracted.email,
               githubUrl: enriched.githubUrl || extracted.githubUrl,
               linkedinUrl: enriched.linkedinUrl || extracted.linkedinUrl,
-              websiteUrl: enriched.websiteUrl || extracted.websiteUrl
+              websiteUrl: enriched.websiteUrl || extracted.websiteUrl || cleanedUrl,
             },
             {
               name: c.name,
               email: c.email,
               githubUrl: c.githubUrl,
               linkedinUrl: c.linkedinUrl,
-              websiteUrl: c.websiteUrl
+              websiteUrl: c.websiteUrl,
             }
           )
         );
 
+        // 🔥 Base sources: always store decoded URL
         const baseSources: any[] = [
-          { source: "website", url, verified: false },
-          ...(enriched.sources || [])
+          { source: "website", url: cleanedUrl, verified: false },
+          ...normalizedEnrichedSources,
         ];
 
         if (possibleDuplicate) {
@@ -644,11 +700,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             possibleDuplicate.id,
             userId,
             {
-              name:
-                possibleDuplicate.name ||
-                enriched.name ||
-                extracted.name ||
-                "Unknown",
+              name: possibleDuplicate.name || finalName,
               email:
                 possibleDuplicate.email ||
                 enriched.email ||
@@ -659,8 +711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 extracted.phone,
               company:
                 possibleDuplicate.company ||
-                enriched.company ||
-                extracted.company,
+                finalCompany,
               title:
                 possibleDuplicate.title ||
                 enriched.title ||
@@ -678,11 +729,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 possibleDuplicate.githubUrl ||
                 enriched.githubUrl ||
                 extracted.githubUrl,
-              websiteUrl:
-                possibleDuplicate.websiteUrl ||
-                enriched.websiteUrl ||
-                extracted.websiteUrl ||
-                url,
+              // always decoded
+              websiteUrl: possibleDuplicate.websiteUrl || cleanedUrl,
               bio:
                 possibleDuplicate.bio ||
                 enriched.bio ||
@@ -706,16 +754,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 4) No duplicate → create
         const contact = await storage.createContact({
           userId,
-          name: enriched.name || extracted.name || "Unknown",
+          name: finalName,
           email: enriched.email || extracted.email,
           phone: enriched.phone || extracted.phone,
-          company: enriched.company || extracted.company,
+          company: finalCompany,
           title: enriched.title || extracted.title,
           location: enriched.location || extracted.location,
           skills: enriched.skills || extracted.skills || [],
           linkedinUrl: enriched.linkedinUrl || extracted.linkedinUrl,
           githubUrl: enriched.githubUrl || extracted.githubUrl,
-          websiteUrl: enriched.websiteUrl || extracted.websiteUrl || url,
+          // 🔥 store decoded URL here
+          websiteUrl: cleanedUrl,
           bio: enriched.bio || extracted.bio,
           confidenceScore: enriched.confidenceScore ?? 0.85,
           sources: baseSources,

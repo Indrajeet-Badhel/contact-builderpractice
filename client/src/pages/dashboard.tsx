@@ -81,6 +81,7 @@ export default function Dashboard() {
   const [searchExplanation, setSearchExplanation] = useState("");
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isImportingFromUrl, setIsImportingFromUrl] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const queryClient = useQueryClient();                     
   const { toast } = useToast();
@@ -265,49 +266,53 @@ const handleAiSearch = async () => {
 };
 
     const handleImportFromUrl = async () => {
-    if (!newContactUrl.trim()) {
-      toast({
-        title: "URL required",
-        description: "Please paste a profile or portfolio URL first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/contacts/from-url", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ url: newContactUrl.trim() }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Failed to create contact from URL");
+      if (!newContactUrl.trim()) {
+        toast({
+          title: "URL required",
+          description: "Please paste a profile or portfolio URL first.",
+          variant: "destructive",
+        });
+        return;
       }
 
-      const contact = await res.json();
+      try {
+        setIsImportingFromUrl(true);
 
-      toast({
-        title: "Contact imported",
-        description: `Imported / updated contact: ${contact.name || "Unknown"}`,
-      });
+        const res = await fetch("/api/contacts/from-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ url: newContactUrl.trim() }),
+        });
 
-      setNewContactUrl("");
-      // refetch contacts to show the new / updated one
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-    } catch (error: any) {
-      console.error(error);
-      toast({
-        title: "Import failed",
-        description: error.message || "Could not import contact from this URL.",
-        variant: "destructive",
-      });
-    }
-  };
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || "Failed to create contact from URL");
+        }
+
+        const contact = await res.json();
+
+        toast({
+          title: "Contact imported",
+          description: `Imported / updated contact: ${contact.name || "Unknown"}`,
+        });
+
+        setNewContactUrl("");
+        // refetch contacts to show the new / updated one
+        queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      } catch (error: any) {
+        console.error(error);
+        toast({
+          title: "Import failed",
+          description: error.message || "Could not import contact from this URL.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsImportingFromUrl(false);
+      }
+    };
 
   const handleSyncToCRM = (contact: Contact) => {
     toast({
@@ -493,12 +498,31 @@ const filteredContacts =
               onChange={(e) => setNewContactUrl(e.target.value)}
               className="border-0 focus-visible:ring-0 text-base bg-transparent"
             />
-            <Button onClick={handleImportFromUrl}>
-              <Sparkles className="w-4 h-4 mr-2" />
-              Import from URL
+            <Button
+              onClick={handleImportFromUrl}
+              disabled={isImportingFromUrl}
+              className={isImportingFromUrl ? "bg-blue-700 hover:bg-blue-700 text-white" : ""}
+            >
+              {isImportingFromUrl ? (
+                <>
+                  <div className="w-4 h-4 mr-2 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Import from URL
+                </>
+              )}
             </Button>
             <EmailImportButton />
           </div>
+          {isImportingFromUrl && (
+            <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
+              <Sparkles className="w-3 h-3 animate-pulse" />
+              Fetching contact details from URL...
+            </p>
+          )}
         </Card>
         
 
