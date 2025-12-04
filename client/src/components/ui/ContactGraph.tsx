@@ -98,9 +98,12 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
   }, []);
 
   // ------------------------
-  // Build graph data (with "common-only" properties)
+  // Build full graph data (NO filtering by selection)
   // ------------------------
-  const graphData: GraphData = useMemo(() => {
+  const { graphData, propertyPersonMap } = useMemo((): {
+    graphData: GraphData;
+    propertyPersonMap: Map<string, Set<string>>;
+  } => {
     const nodesMap = new Map<string, GraphNode>();
     const links: GraphLink[] = [];
     const edgeSet = new Set<string>();
@@ -165,41 +168,67 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
       } catch {}
     });
 
-    // show all people, properties only if:
-    // - common (>=2 people), or
-    // - unique but belongs to selected person
-    const visibleNodeIds = new Set<string>();
+    // IMPORTANT: return ALL nodes and links (no filtering here)
+    return {
+      graphData: {
+        nodes: Array.from(nodesMap.values()),
+        links,
+      },
+      propertyPersonMap,
+    };
+  }, [contacts]);
 
-    // all person nodes visible
-    for (const [id, node] of nodesMap.entries()) {
-      if (node.type === "person") visibleNodeIds.add(id);
-    }
+  // ------------------------
+  // Compute which nodes should be VISIBLE
+  // (people always visible, properties only if common or for selected person)
+  // ------------------------
+  const visibleNodeIds = useMemo(() => {
+    const visible = new Set<string>();
 
-    for (const [id, node] of nodesMap.entries()) {
-      if (node.type === "person") continue;
+    // all people are always visible
+    graphData.nodes.forEach((n) => {
+      if (n.type === "person") visible.add(n.id);
+    });
 
-      const set = propertyPersonMap.get(id);
+    // property nodes visible if:
+    // - common (>= 2 people), OR
+    // - belong to the selected person
+    graphData.nodes.forEach((n) => {
+      if (n.type === "person") return;
+
+      const set = propertyPersonMap.get(n.id);
       const count = set ? set.size : 0;
       const isCommon = count >= 2;
       const belongsToSelected =
         selectedPersonId && set ? set.has(selectedPersonId) : false;
 
-      if (isCommon || belongsToSelected) visibleNodeIds.add(id);
-    }
+      if (isCommon || belongsToSelected) {
+        visible.add(n.id);
+      }
+    });
 
-    const filteredNodes: GraphNode[] = [];
-    for (const [id, node] of nodesMap.entries()) {
-      if (visibleNodeIds.has(id)) filteredNodes.push(node);
-    }
+    return visible;
+  }, [graphData, propertyPersonMap, selectedPersonId]);
 
-    const filteredLinks = links.filter(
-      (l) =>
-        visibleNodeIds.has(l.source as string) &&
-        visibleNodeIds.has(l.target as string)
-    );
+  const selectedProperties = useMemo(() => {
+    if (!selectedPersonId) return [];
 
-    return { nodes: filteredNodes, links: filteredLinks };
-  }, [contacts, selectedPersonId]);
+    // find all neighbor node ids for the selected person
+    const neighborIds = graphData.links
+      .filter(
+        (l) =>
+          l.source === selectedPersonId || l.target === selectedPersonId
+      )
+      .map((l) =>
+        l.source === selectedPersonId ? (l.target as string) : (l.source as string)
+      );
+
+    const uniqueIds = Array.from(new Set(neighborIds));
+
+    return uniqueIds
+      .map((id) => graphData.nodes.find((n) => n.id === id))
+      .filter((n): n is GraphNode => !!n);
+  }, [graphData, selectedPersonId]);
 
   // ------------------------
   // Search -> move camera to first match
@@ -333,6 +362,22 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
               nodeId="id"
               linkSource="source"
               linkTarget="target"
+              // --- visibility: DON'T change data, just hide/show ---
+              nodeVisibility={(nodeObj: any) =>
+                visibleNodeIds.has((nodeObj as GraphNode).id)
+              }
+              linkVisibility={(linkObj: any) => {
+                const src =
+                  typeof linkObj.source === "string"
+                    ? linkObj.source
+                    : (linkObj.source as GraphNode).id;
+                const tgt =
+                  typeof linkObj.target === "string"
+                    ? linkObj.target
+                    : (linkObj.target as GraphNode).id;
+
+                return visibleNodeIds.has(src) && visibleNodeIds.has(tgt);
+              }}
               // --- LABELS ON NODES (always visible) ---
               nodeThreeObject={(nodeObj: any) => {
                 const node = nodeObj as GraphNode;
@@ -382,13 +427,27 @@ export default function ContactGraph({ compact = false }: { compact?: boolean })
                 <div className="font-medium">{selected.name}</div>
                 <div className="text-muted-foreground">{selected.title}</div>
                 <div className="mt-2">{selected.company}</div>
+
                 <div className="mt-2 text-xs text-slate-600">
-                  Skills: {(selected.skills || []).slice(0, 6).join(", ")}
+                  <div className="font-semibold mb-1">Skills</div>
+                  <div>{(selected.skills || []).join(", ") || "—"}</div>
                 </div>
+
+                <div className="mt-2 text-xs text-slate-600">
+                  <div className="font-semibold mb-1">Graph properties</div>
+                  <ul className="max-h-40 overflow-auto list-disc pl-4">
+                    {selectedProperties.map((p) => (
+                      <li key={p.id}>
+                        [{p.type}] {p.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
                 <div className="mt-2">
                   {selected.websiteUrl ? (
                     <a
-                      className="text-blue-600"
+                      className="text-blue-600 text-xs"
                       href={selected.websiteUrl ?? undefined}
                       target="_blank"
                       rel="noreferrer"
