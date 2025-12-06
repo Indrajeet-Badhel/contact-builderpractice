@@ -59,6 +59,55 @@ const limit = pLimit(1);
 
 // Simple retry helper for async tasks (attempts, with optional delay)
 
+function decodeUrlsInObject(obj: any): any {
+  if (!obj) return obj;
+  
+  if (typeof obj === 'string') {
+    // Check if it looks like a URL
+    if (obj.includes('http') || obj.includes('&#x')) {
+      return decodeHtmlEntities(obj);
+    }
+    return obj;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => decodeUrlsInObject(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const decoded: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Decode URL fields specifically
+      if (key.toLowerCase().includes('url') || key === 'websiteUrl' || key === 'githubUrl' || key === 'linkedinUrl' || key === 'orcidUrl') {
+        decoded[key] = typeof value === 'string' ? decodeHtmlEntities(value) : value;
+      } else {
+        decoded[key] = decodeUrlsInObject(value);
+      }
+    }
+    return decoded;
+  }
+  
+  return obj;
+}
+
+function cleanUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  
+  // First decode any HTML entities
+  let cleaned = decodeHtmlEntities(url);
+  
+  // Remove trailing slashes
+  cleaned = cleaned.replace(/\/+$/, '');
+  
+  // Ensure it starts with http:// or https://
+  if (cleaned && !cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    cleaned = 'https://' + cleaned;
+  }
+  
+  return cleaned;
+}
+
+
 function decodeHtmlEntities(str: string): string {
   if (!str) return "";
 
@@ -454,7 +503,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const userId = req.user.claims.sub;
         const contacts = await storage.getContacts(userId);
-        res.json(contacts);
+        
+        // Clean all URLs in the response
+        const cleanedContacts = contacts.map(contact => decodeUrlsInObject(contact));
+        
+        res.json(cleanedContacts);
       } catch (error) {
         console.error("Error fetching contacts:", error);
         res.status(500).json({ message: "Failed to fetch contacts" });
@@ -475,7 +528,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Contact not found" });
         }
         
-        res.json(contact);
+        // Clean all URLs before sending
+        const cleanedContact = decodeUrlsInObject(contact);
+        
+        res.json(cleanedContact);
       } catch (error) {
         console.error("Error fetching contact:", error);
         res.status(500).json({ message: "Failed to fetch contact" });
@@ -604,9 +660,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = req.user.claims.sub;
         const { url } = req.body;
 
-        // 🔥 Always clean the incoming URL once
-        const rawUrl = url;
-        const cleanedUrl = decodeHtmlEntities(rawUrl);
+        // 🔥 CLEAN the incoming URL immediately
+        const cleanedUrl = cleanUrl(url);
+        
+        console.log('Original URL:', url);
+        console.log('Cleaned URL:', cleanedUrl);
+
+        // Validate cleaned URL
+        if (!cleanedUrl || !cleanedUrl.startsWith('http')) {
+          return res.status(400).json({
+            message: "Invalid URL format",
+          });
+        }
 
         // get Gemini key
         const geminiKey = await storage.getApiKeyByService(
@@ -626,48 +691,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
           geminiKey.encryptedValue
         );
 
-        // 2) optional enrichment
+        // 2) Clean all URLs in extracted data
+        const cleanedExtracted = decodeUrlsInObject(extracted);
+
+        // 3) optional enrichment
         const githubKey = await storage
           .getApiKeyByService(userId, "github", "api_key")
           .catch(() => null);
 
         const enriched = await enrichContact(
-          extracted,
+          cleanedExtracted,
           githubKey?.encryptedValue,
           { conservative: true }
         );
 
-        // Decode any URLs coming back from enrichment
-        const normalizedEnrichedSources = (enriched.sources || []).map((s: any) => ({
+        // 4) Clean all URLs in enriched data
+        const cleanedEnriched = decodeUrlsInObject(enriched);
+
+        // Clean sources array
+        const normalizedEnrichedSources = (cleanedEnriched.sources || []).map((s: any) => ({
           ...s,
-          url: s.url ? decodeHtmlEntities(s.url) : s.url,
+          url: cleanUrl(s.url),
         }));
 
         const derivedNameFromUrl = deriveNameFromUrl(cleanedUrl);
 
         const finalName =
-          enriched.name ||
-          extracted.name ||
+          cleanedEnriched.name ||
+          cleanedExtracted.name ||
           derivedNameFromUrl ||
           "Unknown";
 
         const finalCompany =
-          enriched.company ||
-          extracted.company ||
+          cleanedEnriched.company ||
+          cleanedExtracted.company ||
           derivedNameFromUrl ||
           undefined;
 
-        // 3) check duplicates
+        // 5) check duplicates
         const existingContacts = await storage.getContacts(userId);
 
         const possibleDuplicate = existingContacts.find((c) =>
           areLikelySamePerson(
             {
-              name: enriched.name || extracted.name || finalName,
-              email: enriched.email || extracted.email,
-              githubUrl: enriched.githubUrl || extracted.githubUrl,
-              linkedinUrl: enriched.linkedinUrl || extracted.linkedinUrl,
-              websiteUrl: enriched.websiteUrl || extracted.websiteUrl || cleanedUrl,
+              name: cleanedEnriched.name || cleanedExtracted.name || finalName,
+              email: cleanedEnriched.email || cleanedExtracted.email,
+              githubUrl: cleanUrl(cleanedEnriched.githubUrl || cleanedExtracted.githubUrl),
+              linkedinUrl: cleanUrl(cleanedEnriched.linkedinUrl || cleanedExtracted.linkedinUrl),
+              websiteUrl: cleanedUrl,
             },
             {
               name: c.name,
@@ -679,7 +750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         );
 
-        // 🔥 Base sources: always store decoded URL
+        // 🔥 Base sources: always store CLEAN URLs
         const baseSources: any[] = [
           { source: "website", url: cleanedUrl, verified: false },
           ...normalizedEnrichedSources,
@@ -693,7 +764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const mergedSkills = mergeSkills(
             possibleDuplicate.skills || [],
-            enriched.skills || extracted.skills || []
+            cleanedEnriched.skills || cleanedExtracted.skills || []
           );
 
           const updated = await storage.updateContact(
@@ -703,76 +774,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
               name: possibleDuplicate.name || finalName,
               email:
                 possibleDuplicate.email ||
-                enriched.email ||
-                extracted.email,
+                cleanedEnriched.email ||
+                cleanedExtracted.email,
               phone:
                 possibleDuplicate.phone ||
-                enriched.phone ||
-                extracted.phone,
+                cleanedEnriched.phone ||
+                cleanedExtracted.phone,
               company:
                 possibleDuplicate.company ||
                 finalCompany,
               title:
                 possibleDuplicate.title ||
-                enriched.title ||
-                extracted.title,
+                cleanedEnriched.title ||
+                cleanedExtracted.title,
               location:
                 possibleDuplicate.location ||
-                enriched.location ||
-                extracted.location,
+                cleanedEnriched.location ||
+                cleanedExtracted.location,
               skills: mergedSkills,
-              linkedinUrl:
+              linkedinUrl: cleanUrl(
                 possibleDuplicate.linkedinUrl ||
-                enriched.linkedinUrl ||
-                extracted.linkedinUrl,
-              githubUrl:
+                cleanedEnriched.linkedinUrl ||
+                cleanedExtracted.linkedinUrl
+              ),
+              githubUrl: cleanUrl(
                 possibleDuplicate.githubUrl ||
-                enriched.githubUrl ||
-                extracted.githubUrl,
-              // always decoded
-              websiteUrl: possibleDuplicate.websiteUrl || cleanedUrl,
+                cleanedEnriched.githubUrl ||
+                cleanedExtracted.githubUrl
+              ),
+              websiteUrl: cleanUrl(possibleDuplicate.websiteUrl || cleanedUrl),
               bio:
                 possibleDuplicate.bio ||
-                enriched.bio ||
-                extracted.bio,
+                cleanedEnriched.bio ||
+                cleanedExtracted.bio,
               confidenceScore:
-                enriched.confidenceScore ??
+                cleanedEnriched.confidenceScore ??
                 possibleDuplicate.confidenceScore ??
                 0.85,
               sources: mergedSources,
               enrichedData: {
                 ...(possibleDuplicate.enrichedData as any),
-                ...enriched,
+                ...cleanedEnriched,
               },
-              extractedData: extracted,
+              extractedData: cleanedExtracted,
             }
           );
 
-          return res.json(updated);
+          // Clean the response before sending
+          const cleanedResponse = decodeUrlsInObject(updated);
+          return res.json(cleanedResponse);
         }
 
-        // 4) No duplicate → create
+        // 6) No duplicate → create
         const contact = await storage.createContact({
           userId,
           name: finalName,
-          email: enriched.email || extracted.email,
-          phone: enriched.phone || extracted.phone,
+          email: cleanedEnriched.email || cleanedExtracted.email,
+          phone: cleanedEnriched.phone || cleanedExtracted.phone,
           company: finalCompany,
-          title: enriched.title || extracted.title,
-          location: enriched.location || extracted.location,
-          skills: enriched.skills || extracted.skills || [],
-          linkedinUrl: enriched.linkedinUrl || extracted.linkedinUrl,
-          githubUrl: enriched.githubUrl || extracted.githubUrl,
-          // 🔥 store decoded URL here
+          title: cleanedEnriched.title || cleanedExtracted.title,
+          location: cleanedEnriched.location || cleanedExtracted.location,
+          skills: cleanedEnriched.skills || cleanedExtracted.skills || [],
+          linkedinUrl: cleanUrl(cleanedEnriched.linkedinUrl || cleanedExtracted.linkedinUrl),
+          githubUrl: cleanUrl(cleanedEnriched.githubUrl || cleanedExtracted.githubUrl),
           websiteUrl: cleanedUrl,
-          bio: enriched.bio || extracted.bio,
-          confidenceScore: enriched.confidenceScore ?? 0.85,
+          bio: cleanedEnriched.bio || cleanedExtracted.bio,
+          confidenceScore: cleanedEnriched.confidenceScore ?? 0.85,
           sources: baseSources,
-          extractedData: extracted,
-          enrichedData: enriched,
+          extractedData: cleanedExtracted,
+          enrichedData: cleanedEnriched,
         });
 
-        res.json(contact);
+        // Clean the response before sending
+        const cleanedResponse = decodeUrlsInObject(contact);
+        res.json(cleanedResponse);
       } catch (err: any) {
         console.error("Error creating contact from URL:", err);
         const message = err?.message || "Failed to create contact from URL";

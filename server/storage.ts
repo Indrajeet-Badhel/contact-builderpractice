@@ -20,6 +20,109 @@ import { eq, and, ilike, or } from "drizzle-orm";
 import { encrypt, decrypt } from "./security/encryption";
 import { validateAndSanitize } from "./security/validation";
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return "";
+
+  let result = String(str);
+
+  // Fix double-encoded ampersands first: &amp;#x2F; -> &#x2F;
+  result = result.replace(/&amp;#/g, "&#");
+
+  // Hex entities: &#x2F;
+  result = result.replace(/&#x([0-9A-Fa-f]+);/g, (_, hex) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
+
+  // Decimal entities: &#47;
+  result = result.replace(/&#(\d+);/g, (_, dec) =>
+    String.fromCharCode(parseInt(dec, 10))
+  );
+
+  // Common named entities
+  result = result
+    .replace(/&amp;quot;/g, '"')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;#34;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&amp;#39;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;amp;/g, "&")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+  return result;
+}
+
+/**
+ * Clean and normalize a URL - decode entities and remove trailing slashes
+ */
+function cleanUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  
+  // First decode any HTML entities
+  let cleaned = decodeHtmlEntities(url);
+  
+  // Remove trailing slashes
+  cleaned = cleaned.replace(/\/+$/, '');
+  
+  // Ensure it starts with http:// or https://
+  if (cleaned && !cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    cleaned = 'https://' + cleaned;
+  }
+  
+  return cleaned;
+}
+
+/**
+ * Clean all URL fields in an object
+ */
+function cleanContactUrls(data: any): any {
+  if (!data) return data;
+  
+  const cleaned = { ...data };
+  
+  // Clean direct URL fields
+  if (cleaned.linkedinUrl) cleaned.linkedinUrl = cleanUrl(cleaned.linkedinUrl);
+  if (cleaned.githubUrl) cleaned.githubUrl = cleanUrl(cleaned.githubUrl);
+  if (cleaned.websiteUrl) cleaned.websiteUrl = cleanUrl(cleaned.websiteUrl);
+  if (cleaned.orcidUrl) cleaned.orcidUrl = cleanUrl(cleaned.orcidUrl);
+  
+  // Clean URLs in sources array
+  if (Array.isArray(cleaned.sources)) {
+    cleaned.sources = cleaned.sources.map((source: any) => ({
+      ...source,
+      url: source.url ? cleanUrl(source.url) : source.url,
+    }));
+  }
+  
+  // Clean URLs in enrichedData if it exists
+  if (cleaned.enrichedData && typeof cleaned.enrichedData === 'object') {
+    if (cleaned.enrichedData.linkedinUrl) {
+      cleaned.enrichedData.linkedinUrl = cleanUrl(cleaned.enrichedData.linkedinUrl);
+    }
+    if (cleaned.enrichedData.githubUrl) {
+      cleaned.enrichedData.githubUrl = cleanUrl(cleaned.enrichedData.githubUrl);
+    }
+    if (cleaned.enrichedData.websiteUrl) {
+      cleaned.enrichedData.websiteUrl = cleanUrl(cleaned.enrichedData.websiteUrl);
+    }
+    if (cleaned.enrichedData.orcidUrl) {
+      cleaned.enrichedData.orcidUrl = cleanUrl(cleaned.enrichedData.orcidUrl);
+    }
+    
+    // Clean sources in enrichedData
+    if (Array.isArray(cleaned.enrichedData.sources)) {
+      cleaned.enrichedData.sources = cleaned.enrichedData.sources.map((source: any) => ({
+        ...source,
+        url: source.url ? cleanUrl(source.url) : source.url,
+      }));
+    }
+  }
+  
+  return cleaned;
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -82,9 +185,12 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  // Contact operations with sanitization
+  // Contact operations with sanitization and URL cleaning
   async getContacts(userId: string): Promise<Contact[]> {
-    return await db.select().from(contacts).where(eq(contacts.userId, userId));
+    const allContacts = await db.select().from(contacts).where(eq(contacts.userId, userId));
+    
+    // Clean all URLs before returning
+    return allContacts.map((contact: Contact) => cleanContactUrls(contact));
   }
 
   async getContact(id: string, userId: string): Promise<Contact | undefined> {
@@ -92,24 +198,36 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.userId, userId)));
-    return contact;
+    
+    if (!contact) return undefined;
+    
+    // Clean all URLs before returning
+    return cleanContactUrls(contact);
   }
 
   async createContact(contactData: InsertContact): Promise<Contact> {
-    // Sanitize all string fields
+    // First sanitize all string fields
     const sanitized = validateAndSanitize(contactData);
     
-    const [contact] = await db.insert(contacts).values(sanitized as any).returning();
-    return contact;
+    // Then clean all URLs
+    const cleaned = cleanContactUrls(sanitized);
+    
+    const [contact] = await db.insert(contacts).values(cleaned as any).returning();
+    
+    // Return with cleaned URLs
+    return cleanContactUrls(contact);
   }
 
   async updateContact(id: string, userId: string, data: Partial<Contact>): Promise<Contact> {
     // Sanitize update data
     const sanitized = validateAndSanitize(data);
     
+    // Clean all URLs
+    const cleaned = cleanContactUrls(sanitized);
+    
     const [contact] = await db
       .update(contacts)
-      .set({ ...sanitized, updatedAt: new Date() })
+      .set({ ...cleaned, updatedAt: new Date() })
       .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
       .returning();
     
@@ -117,7 +235,8 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Contact not found or unauthorized');
     }
     
-    return contact;
+    // Return with cleaned URLs
+    return cleanContactUrls(contact);
   }
 
   async deleteContact(id: string, userId: string): Promise<void> {
